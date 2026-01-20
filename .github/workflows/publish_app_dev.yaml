@@ -7,10 +7,8 @@ on:
       - "dev_v*"
 
 jobs:
-  # 打包Android、iOS、Mac
   build-mac-ios-android:
     runs-on: macos-latest
-
     permissions:
       contents: write
 
@@ -18,7 +16,7 @@ jobs:
       # 签出代码
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: dev  # 注意：这里还是"dev"，不是"dev_v"
 
       # 设置JAVA环境
       - uses: actions/setup-java@v4
@@ -44,7 +42,7 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 安装appdmg npm install -g appdmg
+      # 安装appdmg
       - name: Install appdmg
         run: npm install -g appdmg
 
@@ -52,21 +50,21 @@ jobs:
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
 
-      # 打包APK
+      # ========== 修改这里！ ==========
+      # 打包APK - 使用debug构建
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --split-per-abi
+          echo "Building debug APK (no signing required)..."
+          flutter build apk --debug  # ✅ 改为debug
 
-      #上传Artifacts
+      # 上传Artifacts - 修改路径
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android
-          path: |
-            simple_live_app/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            simple_live_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            simple_live_app/build/app/outputs/flutter-apk/app-x86_64-release.apk
+          name: android-debug
+          path: simple_live_app/build/app/outputs/flutter-apk/app-debug.apk  # ✅
+      
 
       #打包iOS
       - name: Build IPA
@@ -78,7 +76,7 @@ jobs:
       - name: Create IPA
         run: |
           cd simple_live_app
-          mkdir build/ios/iphoneos/Payload
+          mkdir -p build/ios/iphoneos/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
           cd build/ios/iphoneos/
           zip -q -r ios_no_sign.ipa Payload
@@ -94,4 +92,3 @@ jobs:
 
       #完成
       - run: echo "🍏 This job's status is ${{ job.status }}."
-
