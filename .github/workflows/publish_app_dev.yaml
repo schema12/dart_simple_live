@@ -3,8 +3,10 @@ name: app-build-action-dev
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "dev_v"      # 监听 dev_v 分支推送
     tags:
-      - "dev_v*"
+      - "dev_v*"     # 监听 dev_v 开头的标签
 
 jobs:
   build-mac-ios-android:
@@ -13,15 +15,11 @@ jobs:
       contents: write
 
     steps:
+      # 签出代码 - 最简单的配置
       - uses: actions/checkout@v4
         with:
-          ref: dev_v
+          # 不指定ref，让GitHub自动选择
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       # 设置JAVA环境
       - uses: actions/setup-java@v4
@@ -55,67 +53,27 @@ jobs:
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
 
-      # ========== 修复Android构建 ==========
-      - name: Fix Android build configuration
-        run: |
-          cd simple_live_app/android/app
-          echo "Current directory: $(pwd)"
-          
-          # 查看有问题的行
-          echo "=== Line 44 context ==="
-          sed -n '40,50p' build.gradle.kts
-          
-          # 尝试修复：移除签名配置引用
-          if grep -q "signingConfig signingConfigs" build.gradle.kts; then
-            echo "Found signingConfig, removing..."
-            sed -i '' 's/signingConfig signingConfigs.*//g' build.gradle.kts
-            sed -i '' 's/signingConfig = signingConfigs.*//g' build.gradle.kts
-          fi
-          
-          # 确保buildTypes中debug没有签名配置
-          sed -i '' '/buildTypes {/,/}/ {
-            /debug/,/}/ {
-              /signingConfig/d
-            }
-          }' build.gradle.kts
-          
-          echo "✅ Android build configuration fixed"
-
-      # 尝试构建APK
-      - name: Try building APK
+      # 打包APK - 使用debug版本避免签名问题
+      - name: Build APK
         run: |
           cd simple_live_app
-          echo "Attempting to build APK..."
-          
-          # 尝试多种构建方式
-          if flutter build apk --debug --no-shrink; then
-            echo "✅ Build successful with --debug --no-shrink"
-          elif flutter build apk --debug; then
-            echo "✅ Build successful with --debug"
-          else
-            echo "⚠️ Standard build failed, trying alternative..."
-            # 清理后重试
-            flutter clean
-            rm -rf android/.gradle
-            flutter build apk
-          fi
+          flutter build apk --debug
 
-      # 上传APK
-      - name: Upload APK artifacts
+      #上传Artifacts
+      - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: |
-            simple_live_app/build/app/outputs/flutter-apk/*.apk
-          if-no-files-found: warn
+          name: android-debug
+          path: simple_live_app/build/app/outputs/flutter-apk/app-debug.apk
 
-      # ========== iOS构建 ==========
-      - name: Build iOS
+      #打包iOS
+      - name: Build IPA
         run: |
           cd simple_live_app
           flutter build ios --release --no-codesign
 
-      - name: Create iOS IPA
+      #创建未签名ipa
+      - name: Create IPA
         run: |
           cd simple_live_app
           mkdir -p build/ios/iphoneos/Payload
@@ -124,24 +82,12 @@ jobs:
           zip -q -r ios_no_sign.ipa Payload
           cd ../../..
 
-      - name: Upload iOS artifacts
+      # 上传IPA至Artifacts
+      - name: Upload IPA to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
+          name: ios-unsigned
           path: simple_live_app/build/ios/iphoneos/ios_no_sign.ipa
 
-      # ========== macOS构建 ==========
-      - name: Build macOS
-        run: |
-          cd simple_live_app
-          flutter_distributor package --platform macos --targets dmg,zip --skip-clean
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-app
-          path: |
-            simple_live_app/build/dist/*/*.dmg
-            simple_live_app/build/dist/*/*.zip
-
-      - run: echo "🍏 Build process completed"
+      #完成
+      - run: echo "✅ Build completed successfully!"
