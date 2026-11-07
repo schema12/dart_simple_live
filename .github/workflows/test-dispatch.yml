@@ -1,0 +1,17 @@
+name: test-dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'BT'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
