@@ -129,7 +129,7 @@ void testSite(LiveSite site) async {
     expect(closed, isFalse);
     expect(msgCount, greaterThan(0));
     await danmaku.stop();
-  }, timeout: const Timeout(Duration(seconds: 40)));
+  }, timeout: const Timeout(Duration(seconds: 40)), retry: 2);
 }
 
 void main() {

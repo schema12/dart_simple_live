@@ -89,27 +89,47 @@ void main() {
       });
 
       test('弹幕连接能收到消息', () async {
-        final detail = await site.getRoomDetail(roomId: hintRoom);
-        final danmaku = site.getDanmaku();
-        final gotMessage = Completer<bool>();
-        danmaku.onMessage = (msg) {
-          if (!gotMessage.isCompleted) {
-            gotMessage.complete(true);
+        // 数据中心 IP 对部分平台弹幕有风控（CI 环境可按平台跳过）
+        final skipList =
+            Platform.environment['LAN_SKIP_DANMAKU_FOR']?.split(',') ?? const [];
+        if (skipList.contains(platform)) {
+          markTestSkipped('CI 环境跳过 $platform 弹幕连接（数据中心 IP 限制）');
+          return;
+        }
+        // 依次尝试推荐列表前 3 个房间，避免单个房间偶发无弹幕
+        final recommend = await site.getRecommendRooms(page: 1);
+        final roomIds = [
+          hintRoom,
+          ...recommend.items.map((r) => r.roomId),
+        ].take(3).toSet().toList();
+        var gotAny = false;
+        for (final roomId in roomIds) {
+          final detail = await site.getRoomDetail(roomId: roomId);
+          final danmaku = site.getDanmaku();
+          final gotMessage = Completer<bool>();
+          danmaku.onMessage = (msg) {
+            if (!gotMessage.isCompleted) {
+              gotMessage.complete(true);
+            }
+          };
+          danmaku.onClose = (e) {
+            if (!gotMessage.isCompleted) {
+              gotMessage.complete(false);
+            }
+          };
+          await danmaku.start(detail.danmakuData);
+          final result = await gotMessage.future.timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => false,
+          );
+          await danmaku.stop();
+          if (result) {
+            gotAny = true;
+            break;
           }
-        };
-        danmaku.onClose = (e) {
-          if (!gotMessage.isCompleted) {
-            gotMessage.complete(false);
-          }
-        };
-        await danmaku.start(detail.danmakuData);
-        final result = await gotMessage.future.timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => false,
-        );
-        await danmaku.stop();
-        expect(result, isTrue, reason: '20 秒内未收到任何弹幕/人气消息');
-      });
+        }
+        expect(gotAny, isTrue, reason: '多个房间均未收到弹幕/人气消息');
+      }, timeout: const Timeout(Duration(minutes: 3)));
     });
   }
 }

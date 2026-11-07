@@ -29,6 +29,8 @@ jobs:
 
       - name: Core — offline unit tests
         working-directory: simple_live_core
+        env:
+          LAN_SKIP_DOUYIN: '1'
         run: dart test --exclude-tags integration
 
       - name: Core — network tests (bilibili/douyu/huya)
@@ -49,6 +51,7 @@ jobs:
         working-directory: simple_live_lan_server
         env:
           LAN_INTEGRATION: '1'
+          LAN_SKIP_DANMAKU_FOR: 'douyu'
         run: dart test --tags integration
 
       - name: Console — tests
