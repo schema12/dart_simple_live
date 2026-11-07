@@ -104,6 +104,13 @@ void testSite(LiveSite site) async {
   });
 
   test('getDanmaku', () async {
+    // 部分平台对数据中心 IP 的弹幕连接有风控，CI 按平台跳过（真机环境仍执行）
+    final skipDanmaku =
+        Platform.environment['LAN_SKIP_DANMAKU_FOR']?.split(',') ?? const [];
+    if (skipDanmaku.contains(site.id)) {
+      markTestSkipped('CI 环境跳过 ${site.id} 弹幕连接测试（数据中心 IP 限制）');
+      return;
+    }
     var danmaku = site.getDanmaku();
     expect(danmaku, isNotNull);
     expect(danmaku, isA<LiveDanmaku>());
