@@ -37,7 +37,8 @@ void main() {
       expect(ac.isRevoked('device-1'), isFalse);
       expect(ac.revokeClient('device-1'), isTrue);
       expect(ac.isRevoked('device-1'), isTrue);
-      expect(ac.revokeClient('device-1'), isTrue);
+      // 重复撤销：已撤销的客户端再次 add 返回 false
+      expect(ac.revokeClient('device-1'), isFalse);
     });
 
     test('revokeClient 空 ID 返回 false', () {

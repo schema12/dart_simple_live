@@ -47,7 +47,7 @@ class LanServer {
   final LanServerConfig config;
   final AssetSource assetSource;
 
-  late final AccessControl accessControl;
+  late AccessControl accessControl;
   late final DanmakuHub danmakuHub;
   late final StaticFiles staticFiles;
   final LiveHub hub;
