@@ -5,6 +5,12 @@ name: android-build
 # - 原项目 release 签名缺 key.properties 时自动回退 debug 签名；
 # - 产物上传为 Artifact（apk + sha256 + 构建日志）。
 on:
+  # 仅当工作流文件自身变更时自动构建（用于配置校验）；日常构建用 workflow_dispatch
+  push:
+    branches:
+      - lan-server-dev
+    paths:
+      - '.github/workflows/android-build.yml'
   workflow_dispatch:
     inputs:
       build_type:
