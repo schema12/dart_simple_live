@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:simple_live_app/app/app_style.dart';
 import 'package:simple_live_app/services/lan_server_service.dart';
+import 'package:simple_live_lan_server/simple_live_lan_server.dart' show LanServerStatus;
 
 /// 局域网服务器控制页。
 class LanServerPage extends StatelessWidget {

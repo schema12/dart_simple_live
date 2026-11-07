@@ -16,7 +16,8 @@ class AccountPage extends GetView<AccountController> {
       // Keep the account list as the only scrolling viewport.  On desktop,
       // an unconstrained ListView can inherit the route's remaining height
       // and leave later rows below an opaque platform surface.
-      body: ColoredBox(
+      // Material（而非 ColoredBox）承载背景色，保证 ListTile 水波纹正常绘制。
+      body: Material(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: ListView(
           shrinkWrap: false,
