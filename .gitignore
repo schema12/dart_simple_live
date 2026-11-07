@@ -100,3 +100,6 @@ node_modules/
 simple_live_app/assets/web/
 web_client/dist/
 .dart-tool/
+logs-android2/
+logs-*.txt
+logs-*.zip
