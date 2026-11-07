@@ -8,6 +8,8 @@ environment:
 dependencies:
   simple_live_core:
     path: ../simple_live_core
+  simple_live_lan_server:
+    path: ../simple_live_lan_server
   dart_quickjs:
     git:
       url: https://github.com/xiaoyaocz/dart_quickjs
@@ -113,6 +115,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - assets/web/
     - assets/statement.txt
     - assets/images/
     - assets/images/douyin_emoji/

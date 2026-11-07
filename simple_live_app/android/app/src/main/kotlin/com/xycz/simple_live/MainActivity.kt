@@ -18,10 +18,49 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var appWindowChannel: MethodChannel? = null
     private var backgroundChannel: MethodChannel? = null
+    private var lanChannel: MethodChannel? = null
     private var lastWindowState: Map<String, Any>? = null
+
+    /// 使用 Application 中缓存的引擎，Activity 销毁不终止 Dart 服务
+    override fun provideEngine(): FlutterEngine? =
+        io.flutter.embedding.engine.FlutterEngineCache.getInstance()
+            .get(MainApplication.ENGINE_ID)
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        lanChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            LAN_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startService" -> {
+                        LanServerService.start(
+                            this,
+                            call.argument<String>("title") ?: "SimpleLive 局域网服务",
+                            call.argument<String>("text") ?: "服务运行中",
+                        )
+                        result.success(null)
+                    }
+                    "update" -> {
+                        LanServerService.update(
+                            this,
+                            call.argument<String>("text") ?: "",
+                        )
+                        result.success(null)
+                    }
+                    "stopService" -> {
+                        LanServerService.stop(this)
+                        result.success(null)
+                    }
+                    "onServiceStopped" -> result.success(null)
+                    else -> result.notImplemented()
+                }
+            }
+        }
         appWindowChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             APP_WINDOW_CHANNEL,
@@ -393,6 +432,7 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val APP_WINDOW_CHANNEL = "simple_live/app_window"
+        private const val LAN_CHANNEL = "simple_live/lan_server"
         private const val LIVE_START_CHANNEL_ID = "simple_live_live_start"
         private const val WINDOWING_MODE_FREEFORM = 5
     }

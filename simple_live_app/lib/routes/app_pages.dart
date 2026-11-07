@@ -30,6 +30,7 @@ import 'package:simple_live_app/modules/sync/local_sync/scan_qr/sync_scan_qr_pag
 import 'package:simple_live_app/modules/mine/parse/parse_controller.dart';
 import 'package:simple_live_app/modules/mine/parse/parse_page.dart';
 import 'package:simple_live_app/modules/sync/local_sync/local_sync_controller.dart';
+import 'package:simple_live_app/modules/settings/lan_server/lan_server_page.dart';
 import 'package:simple_live_app/modules/sync/local_sync/local_sync_page.dart';
 import 'package:simple_live_app/modules/mine/account/account_controller.dart';
 import 'package:simple_live_app/modules/mine/account/account_page.dart';
@@ -269,6 +270,11 @@ class AppPages {
     GetPage(
       name: RoutePath.kSync,
       page: () => const SyncPage(),
+    ),
+    // 局域网服务器
+    GetPage(
+      name: RoutePath.kSettingsLanServer,
+      page: () => LanServerPage(),
     ),
     GetPage(
       name: RoutePath.kProfileBackup,

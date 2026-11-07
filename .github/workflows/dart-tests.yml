@@ -1,0 +1,57 @@
+name: dart-tests
+
+# Dart 逻辑测试：核心库 + 局域网服务端（含真实平台集成测试）。
+# 手动触发，或推送时自动运行（测试成本低，APK 构建不在此工作流中）。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - lan-server-dev
+
+permissions:
+  contents: read
+
+jobs:
+  dart-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Core — pub get
+        working-directory: simple_live_core
+        run: dart pub get
+
+      - name: Core — offline unit tests
+        working-directory: simple_live_core
+        run: dart test --exclude-tags integration
+
+      - name: LAN server — pub get
+        working-directory: simple_live_lan_server
+        run: dart pub get
+
+      - name: LAN server — unit tests
+        working-directory: simple_live_lan_server
+        run: dart test --exclude-tags integration
+
+      - name: LAN server — real platform integration tests (huya/douyu/bilibili)
+        working-directory: simple_live_lan_server
+        env:
+          LAN_INTEGRATION: '1'
+        run: dart test --tags integration
+
+      - name: Console — tests
+        working-directory: simple_live_console
+        run: |
+          dart pub get
+          dart test
+
+      - name: Test report
+        if: always()
+        run: |
+          echo "=== Dart tests finished ==="

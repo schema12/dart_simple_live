@@ -96,6 +96,9 @@ class RoutePath {
   /// 远程同步-WebDAVConfig
   static const kRemoteSyncWebDavConfig = "/remote_sync/webDAVConfig";
 
+  /// 局域网服务器
+  static const kSettingsLanServer = "/settings/lan_server";
+
   /// 测试页面
   static const kTest = "/test";
 }

@@ -114,6 +114,7 @@ class LocalStorageService extends GetxService {
   static const String kDouyuDeviceId = "DouyuDeviceId";
   static const String kDouyuLtp0 = "DouyuLtp0";
   static const String kDouyuPassportDid = "DouyuPassportDid";
+  static const String kLanServerToken = "LanServerToken";
   static const String kKuaishouCookie = "KuaishouCookie";
   static const String kKuaishouKww = "KuaishouKww";
   static const String kKuaishouCookieExpiresAt = "KuaishouCookieExpiresAt";

@@ -92,3 +92,11 @@ images/todo/
 !**/README.md
 .codex/project-experience.md
 /learning/
+
+# =============================================================================
+# SimpleLive LAN additions
+# =============================================================================
+node_modules/
+simple_live_app/assets/web/
+web_client/dist/
+.dart-tool/

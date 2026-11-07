@@ -34,6 +34,7 @@ import 'package:simple_live_app/services/db_service.dart';
 import 'package:simple_live_app/services/follow_service.dart';
 import 'package:simple_live_app/services/kuaishou_account_service.dart';
 import 'package:simple_live_app/services/live_subtitle_service.dart';
+import 'package:simple_live_app/services/lan_server_service.dart';
 import 'package:simple_live_app/services/local_storage_service.dart';
 import 'package:simple_live_app/services/profile_backup_service.dart';
 import 'package:simple_live_app/services/sync_service.dart';
@@ -484,6 +485,8 @@ Future initServices() async {
   Get.put(DouyuAccountService());
 
   Get.put(KuaishouAccountService());
+
+  Get.put(LanServerService());
 
   Get.put(FollowService());
   Get.put(LiveSubtitleService());

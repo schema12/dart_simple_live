@@ -155,6 +155,18 @@ class MinePage extends StatelessWidget {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.lan),
+                  title: const Text("局域网服务器"),
+                  subtitle: const Text("将直播共享到 iPad / 电脑浏览器"),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.grey,
+                  ),
+                  onTap: () {
+                    Get.toNamed(RoutePath.kSettingsLanServer);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Remix.play_circle_line),
                   title: const Text("直播设置"),
                   trailing: const Icon(
