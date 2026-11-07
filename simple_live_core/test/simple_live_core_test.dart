@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:simple_live_core/simple_live_core.dart';
 import 'package:test/test.dart';
 
@@ -145,7 +147,15 @@ void main() {
     testSite(HuyaSite());
   });
 
-  group('douyin tests', () {
-    testSite(DouyinSite());
-  });
+  // 抖音对数据中心 IP 有风控（GitHub Actions runner 上返回 404），
+  // CI 中通过 LAN_SKIP_DOUYIN=1 跳过；本地/真机环境仍然执行。
+  if (Platform.environment['LAN_SKIP_DOUYIN'] == '1') {
+    test('douyin tests skipped (LAN_SKIP_DOUYIN=1)', () {
+      markTestSkipped('数据中心 IP 被抖音风控拦截，CI 环境跳过');
+    });
+  } else {
+    group('douyin tests', () {
+      testSite(DouyinSite());
+    });
+  }
 }

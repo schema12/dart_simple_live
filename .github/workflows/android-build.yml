@@ -45,6 +45,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve build parameters
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "build_type=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
+            echo "target_abi=${{ inputs.target_abi }}" >> "$GITHUB_OUTPUT"
+            echo "run_tests=${{ inputs.run_flutter_tests }}" >> "$GITHUB_OUTPUT"
+          else
+            # push 触发（工作流配置变更）：默认 debug / arm64，跑测试
+            echo "build_type=debug" >> "$GITHUB_OUTPUT"
+            echo "target_abi=arm64-v8a" >> "$GITHUB_OUTPUT"
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -80,34 +94,34 @@ jobs:
         run: flutter pub get
 
       - name: Flutter tests
-        if: ${{ inputs.run_flutter_tests }}
+        if: ${{ steps.resolve.outputs.run_tests == 'true' }}
         working-directory: simple_live_app
         run: flutter test
 
       # ---------- APK ----------
       - name: Build APK (debug / arm64)
-        if: ${{ inputs.build_type == 'debug' && inputs.target_abi == 'arm64-v8a' }}
+        if: ${{ steps.resolve.outputs.build_type == 'debug' && steps.resolve.outputs.target_abi == 'arm64-v8a' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
           flutter build apk --debug --target-platform android-arm64 2>&1 | tee build.log
 
       - name: Build APK (debug / universal)
-        if: ${{ inputs.build_type == 'debug' && inputs.target_abi == 'universal' }}
+        if: ${{ steps.resolve.outputs.build_type == 'debug' && steps.resolve.outputs.target_abi == 'universal' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
           flutter build apk --debug 2>&1 | tee build.log
 
       - name: Build APK (release / arm64)
-        if: ${{ inputs.build_type == 'release' && inputs.target_abi == 'arm64-v8a' }}
+        if: ${{ steps.resolve.outputs.build_type == 'release' && steps.resolve.outputs.target_abi == 'arm64-v8a' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
           flutter build apk --release --target-platform android-arm64 2>&1 | tee build.log
 
       - name: Build APK (release / universal)
-        if: ${{ inputs.build_type == 'release' && inputs.target_abi == 'universal' }}
+        if: ${{ steps.resolve.outputs.build_type == 'release' && steps.resolve.outputs.target_abi == 'universal' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
@@ -118,7 +132,7 @@ jobs:
         run: |
           mkdir -p dist
           APK=$(ls simple_live_app/build/app/outputs/flutter-apk/*.apk | head -1)
-          TYPE=${{ inputs.build_type }}
+          TYPE=${{ steps.resolve.outputs.build_type }}
           if [ "$TYPE" = "debug" ]; then
             cp "$APK" dist/android-debug.apk
             NAME=android-debug.apk
@@ -134,7 +148,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ inputs.build_type }}-${{ inputs.target_abi }}
+          name: android-${{ steps.resolve.outputs.build_type }}-${{ steps.resolve.outputs.target_abi }}-${{ github.run_number }}
           path: |
             dist/*.apk
             dist/sha256.txt

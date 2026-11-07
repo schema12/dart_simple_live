@@ -31,6 +31,12 @@ jobs:
         working-directory: simple_live_core
         run: dart test --exclude-tags integration
 
+      - name: Core — network tests (bilibili/douyu/huya)
+        working-directory: simple_live_core
+        env:
+          LAN_SKIP_DOUYIN: '1'
+        run: dart test test/simple_live_core_test.dart
+
       - name: LAN server — pub get
         working-directory: simple_live_lan_server
         run: dart pub get
