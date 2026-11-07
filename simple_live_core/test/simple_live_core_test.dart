@@ -17,7 +17,7 @@ void testSite(LiveSite site) async {
       expect(item.userName, isNotEmpty);
       print(item);
     }
-  });
+  }, retry: 2);
 
   var categores = <LiveCategory>[];
   test('getCategores', () async {
@@ -32,7 +32,7 @@ void testSite(LiveSite site) async {
       }
       print('${item.name}\n${item.children}');
     }
-  });
+  }, retry: 2);
 
   test('getCategoryRooms', () async {
     var result = await site.getCategoryRooms(categores.first.children.first);
@@ -45,7 +45,7 @@ void testSite(LiveSite site) async {
       expect(item.userName, isNotEmpty);
       print(item);
     }
-  });
+  }, retry: 2);
 
   test('searchRooms', () async {
     var result = await site.searchRooms('LOL');
@@ -58,7 +58,7 @@ void testSite(LiveSite site) async {
       expect(item.userName, isNotEmpty);
       print(item);
     }
-  });
+  }, retry: 2);
 
   test('searchAnchors', () async {
     // 跳过抖音测试此项
@@ -73,7 +73,7 @@ void testSite(LiveSite site) async {
       expect(item.userName, isNotEmpty);
       print(item);
     }
-  });
+  }, retry: 2);
 
   LiveRoomDetail? roomDetail;
   test('getRoomDetail', () async {
@@ -82,7 +82,7 @@ void testSite(LiveSite site) async {
     expect(roomDetail?.roomId, isNotEmpty);
     expect(roomDetail?.danmakuData, isNotNull);
     print(roomDetail);
-  });
+  }, retry: 2);
 
   List<LivePlayQuality> playQualities = [];
   test('getPlayQuality', () async {
@@ -93,7 +93,7 @@ void testSite(LiveSite site) async {
       expect(item.data, isNotNull);
       print(item);
     }
-  });
+  }, retry: 2);
 
   test('getPlayUrls', () async {
     var url = await site.getPlayUrls(
@@ -101,7 +101,7 @@ void testSite(LiveSite site) async {
     expect(url, isNotNull);
     expect(url.urls, isNotEmpty);
     print(url.urls.join('\n\n'));
-  });
+  }, retry: 2);
 
   test('getDanmaku', () async {
     // 部分平台对数据中心 IP 的弹幕连接有风控，CI 按平台跳过（真机环境仍执行）
