@@ -15,8 +15,8 @@ class AccessControl {
   AccessControl({
     required String token,
     this.maxClients = 64,
-    this.rateLimitBurst = 40,
-    this.rateLimitRefillPerSecond = 10,
+    this.rateLimitBurst = 120,
+    this.rateLimitRefillPerSecond = 15,
   }) : _token = token {
     _refreshInterfaces();
   }

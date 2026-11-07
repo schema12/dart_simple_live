@@ -104,6 +104,7 @@ class StreamProxy {
       final resp = await req.close();
 
       final response = request.response;
+      response.deadline = const Duration(minutes: 5);
       response.statusCode = resp.statusCode;
       // 透传关键响应头
       _copyHeader(resp, response, HttpHeaders.contentTypeHeader);

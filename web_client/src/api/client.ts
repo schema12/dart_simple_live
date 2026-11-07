@@ -216,6 +216,12 @@ export const api = {
 // WebSocket
 // ---------------------------------------------------------------------------
 
+/** 给服务器相对路径（如 /api/proxy/<id>）附加鉴权参数（用于 video src 等无法自定义头的场景）。 */
+export function withToken(path: string): string {
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}token=${encodeURIComponent(getToken())}&client=${encodeURIComponent(getClientId())}`
+}
+
 export function danmakuWsUrl(platform: string, roomId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const qs = new URLSearchParams({

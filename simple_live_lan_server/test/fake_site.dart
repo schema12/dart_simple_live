@@ -3,7 +3,12 @@ import 'dart:async';
 import 'package:simple_live_core/simple_live_core.dart';
 
 /// 测试用假平台：完全实现 LiveSite 接口，不访问任何网络。
+/// [cdnBase] 指向测试内启动的本地假 CDN。
 class FakeLiveSite implements LiveSite {
+  FakeLiveSite({this.cdnBase = 'http://127.0.0.1:9'});
+
+  final String cdnBase;
+
   @override
   String id = 'fake';
 
@@ -107,7 +112,7 @@ class FakeLiveSite implements LiveSite {
   }) async {
     final ext = detail.data == 'hls-test' ? 'm3u8' : 'flv';
     return LivePlayUrl(
-      urls: ['http://cdn.test:1935/live/${detail.roomId}.$ext'],
+      urls: ['$cdnBase/live/${detail.roomId}.$ext'],
       headers: {'user-agent': 'FakeUA/1.0'},
     );
   }

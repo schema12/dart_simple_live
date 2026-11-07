@@ -64,6 +64,8 @@ class HttpHelpers {
       await handler().timeout(timeout);
     } on TimeoutException {
       await error(request, HttpStatus.gatewayTimeout, '请求上游超时，请稍后重试');
+    } on ArgumentError catch (e) {
+      await error(request, HttpStatus.badRequest, e.message?.isNotEmpty == true ? e.message! : '参数错误');
     } catch (e, s) {
       if (request.response.headers.contentType == null &&
           !request.response.bufferOutput) {

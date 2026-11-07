@@ -238,8 +238,9 @@ class LanServer {
       return;
     }
 
-    // 访问控制
-    final denial = accessControl.validate(request);
+    // 访问控制：API 需要令牌；静态资源仅做 Host/Origin/限流校验（配对页需无令牌可加载）
+    final requireToken = path.startsWith('/api/');
+    final denial = accessControl.validate(request, requireToken: requireToken);
     if (denial != null) {
       await HttpHelpers.error(request, HttpStatus.forbidden, denial);
       accessControl.completeLog(request, 403, sw.elapsedMilliseconds);

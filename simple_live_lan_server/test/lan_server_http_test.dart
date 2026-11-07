@@ -19,17 +19,29 @@ void main() {
   late String baseUrl;
   const token = 'testtoken00000000000000000000aa';
 
+  late HttpServer fakeCdn;
+
   setUpAll(() async {
+    // 本地假 CDN：代理回源测试的目标
+    fakeCdn = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    unawaited(
+      fakeCdn.forEach((req) async {
+        req.response.headers.set('content-type', 'video/x-flv');
+        req.response.write('fake-cdn-stream');
+        await req.response.close();
+      }),
+    );
     webDir = await Directory.systemTemp.createTemp('lan_web_');
     await File('${webDir.path}/index.html')
         .writeAsString('<!DOCTYPE html><html><body>LAN Web</body></html>');
     await Directory('${webDir.path}/assets').create();
     await File('${webDir.path}/assets/app.js').writeAsString('console.log(1)');
 
+    final cdnBase = 'http://127.0.0.1:${fakeCdn.port}';
     final hub = LiveHub(sites: {
-      'huya': FakeLiveSite(),
-      'douyu': FakeLiveSite(),
-      'bilibili': FakeLiveSite(),
+      'huya': FakeLiveSite(cdnBase: cdnBase),
+      'douyu': FakeLiveSite(cdnBase: cdnBase),
+      'bilibili': FakeLiveSite(cdnBase: cdnBase),
     });
 
     server = LanServer(
@@ -48,6 +60,7 @@ void main() {
 
   tearDownAll(() async {
     await server.stop();
+    await fakeCdn.close(force: true);
     await webDir.delete(recursive: true);
   });
 
@@ -208,7 +221,7 @@ void main() {
     expect(resp.statusCode, 403);
   });
 
-  test('静态资源：index 与 js 正常返回，未知路径回退 index', () async {
+  test('静态资源：index 与 js 正常返回（无令牌可加载配对页），未知路径回退 index', () async {
     final idx = await HttpClient()
         .getUrl(Uri.parse('$baseUrl/'))
         .then((r) => r.close());

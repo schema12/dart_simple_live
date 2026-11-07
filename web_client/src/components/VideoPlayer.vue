@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type Hls from 'hls.js'
 import mpegts from 'mpegts.js'
 import type { StreamInfo, StreamUrl } from '../api/types'
+import { withToken } from '../api/client'
 import { settings } from '../stores/settings'
 
 /**
@@ -76,7 +77,7 @@ function buildAttempts(stream: StreamInfo): Attempt[] {
       proxied.push({
         label: `代理 ${i + 1}`,
         kind: 'proxy',
-        url: u.proxy,
+        url: withToken(u.proxy),
         format: u.format,
       })
     }
