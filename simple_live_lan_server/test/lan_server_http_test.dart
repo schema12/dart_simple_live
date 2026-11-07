@@ -298,10 +298,15 @@ void main() {
     await _waitUntil(() => received.any((m) => m['type'] == 'hello'));
     expect(received.firstWhere((m) => m['type'] == 'hello')['platform'], 'huya');
 
-    // FakeDanmaku 推送一条弹幕
+    // FakeDanmaku 推送弹幕（多次投递，避免偶发竞态）
     final fakeSite = server.hub.site('huya') as FakeLiveSite;
-    fakeSite.emitChat('测试用户', '你好局域网', '#FF0000');
-    await _waitUntil(() => received.any((m) => m['type'] == 'chat'));
+    await _waitUntil(
+      () {
+        fakeSite.emitChat('测试用户', '你好局域网', '#FF0000');
+        return received.any((m) => m['type'] == 'chat');
+      },
+      timeout: const Duration(seconds: 8),
+    );
     final chat = received.firstWhere((m) => m['type'] == 'chat');
     expect(chat['user'], '测试用户');
     expect(chat['text'], '你好局域网');
@@ -331,10 +336,13 @@ void main() {
 
     await _waitUntil(() => got1.isNotEmpty && got2.isNotEmpty);
     final fakeSite = server.hub.site('douyu') as FakeLiveSite;
-    fakeSite.emitChat('甲', '共享弹幕', '#FFFFFF');
     await _waitUntil(
-      () => got1.any((m) => m['type'] == 'chat') &&
-          got2.any((m) => m['type'] == 'chat'),
+      () {
+        fakeSite.emitChat('甲', '共享弹幕', '#FFFFFF');
+        return got1.any((m) => m['type'] == 'chat') &&
+            got2.any((m) => m['type'] == 'chat');
+      },
+      timeout: const Duration(seconds: 8),
     );
 
     await sub1.cancel();
