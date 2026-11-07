@@ -32,14 +32,27 @@ jobs:
         env:
           LAN_SKIP_DOUYIN: '1'
           LAN_SKIP_DANMAKU_FOR: 'douyu'
-        run: dart test --exclude-tags integration
+        run: |
+          # 平台 CDN 对数据中心 IP 的连通性存在波动，整体重试以消除偶发超时
+          for i in 1 2 3; do
+            dart test --exclude-tags integration && exit 0
+            echo "===== retry $i ====="
+            sleep 20
+          done
+          exit 1
 
       - name: Core — network tests (bilibili/douyu/huya)
         working-directory: simple_live_core
         env:
           LAN_SKIP_DOUYIN: '1'
           LAN_SKIP_DANMAKU_FOR: 'douyu'
-        run: dart test test/simple_live_core_test.dart
+        run: |
+          for i in 1 2 3; do
+            dart test test/simple_live_core_test.dart && exit 0
+            echo "===== retry $i ====="
+            sleep 20
+          done
+          exit 1
 
       - name: LAN server — pub get
         working-directory: simple_live_lan_server
@@ -54,7 +67,13 @@ jobs:
         env:
           LAN_INTEGRATION: '1'
           LAN_SKIP_DANMAKU_FOR: 'douyu'
-        run: dart test --tags integration
+        run: |
+          for i in 1 2 3; do
+            dart test --tags integration && exit 0
+            echo "===== retry $i ====="
+            sleep 20
+          done
+          exit 1
 
       - name: Console — tests
         working-directory: simple_live_console
