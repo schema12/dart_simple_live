@@ -534,10 +534,11 @@ class LanServer {
 
       ws.listen(
         (data) {
-          // 客户端心跳
-          if (data is String) {
+          // 客户端心跳：兼容文本帧与二进制帧
+          if (data is String || data is List<int>) {
             try {
-              final msg = json.decode(data);
+              final text = data is String ? data : utf8.decode(data as List<int>);
+              final msg = json.decode(text);
               if (msg is Map && msg['type'] == 'ping') {
                 session.send({'type': 'pong', 'ts': DateTime.now().millisecondsSinceEpoch});
               }

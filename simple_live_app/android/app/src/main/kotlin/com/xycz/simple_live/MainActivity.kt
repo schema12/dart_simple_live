@@ -26,17 +26,13 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // 使用 Application 中缓存的引擎：附加官方 cached-engine 启动参数，
         // Activity 销毁（如从最近任务划掉）不终止 Dart 侧局域网服务。
-        if (!intent.hasExtra(io.flutter.embedding.android.FlutterActivityLaunchConfigs.EXTRA_CACHED_ENGINE_ID)) {
-            if (FlutterEngineCache.getInstance().get(MainApplication.ENGINE_ID) != null) {
-                intent.putExtra(
-                    io.flutter.embedding.android.FlutterActivityLaunchConfigs.EXTRA_CACHED_ENGINE_ID,
-                    MainApplication.ENGINE_ID,
-                )
-                intent.putExtra(
-                    io.flutter.embedding.android.FlutterActivityLaunchConfigs.EXTRA_DESTROY_ENGINE_WITH_ACTIVITY,
-                    false,
-                )
-            }
+        if (FlutterEngineCache.getInstance().get(MainApplication.ENGINE_ID) != null &&
+            !intent.hasExtra(CACHED_ENGINE_EXTRA)
+        ) {
+            // 官方 cached-engine 启动协议（键名见 FlutterActivityLaunchConfigs，
+            // 该接口在新版 Flutter 中为 package-private，故使用字符串字面量）
+            intent.putExtra(CACHED_ENGINE_EXTRA, MainApplication.ENGINE_ID)
+            intent.putExtra(DESTROY_ENGINE_WITH_ACTIVITY_EXTRA, false)
         }
         super.onCreate(savedInstanceState)
     }
@@ -446,6 +442,8 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val APP_WINDOW_CHANNEL = "simple_live/app_window"
         private const val LAN_CHANNEL = "simple_live/lan_server"
+        private const val CACHED_ENGINE_EXTRA = "cached_engine_id"
+        private const val DESTROY_ENGINE_WITH_ACTIVITY_EXTRA = "destroy_engine_with_activity"
         private const val LIVE_START_CHANNEL_ID = "simple_live_live_start"
         private const val WINDOWING_MODE_FREEFORM = 5
     }

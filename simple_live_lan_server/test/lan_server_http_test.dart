@@ -314,7 +314,7 @@ void main() {
     expect((chat['color'] as String).toLowerCase(), '#ff0000');
 
     // 心跳
-    ws.add(utf8.encode(json.encode({'type': 'ping'})));
+    ws.add(json.encode({'type': 'ping'}));
     await _waitUntil(() => received.any((m) => m['type'] == 'pong'));
 
     await sub.cancel();
