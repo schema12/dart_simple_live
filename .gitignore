@@ -103,3 +103,7 @@ web_client/dist/
 logs-android2/
 logs-*.txt
 logs-*.zip
+apk-release/
+apk-out/
+debug-apk.zip
+release-apk.zip

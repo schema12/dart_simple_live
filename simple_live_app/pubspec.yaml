@@ -115,7 +115,9 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    # Flutter 目录资源不递归，需逐级列出
     - assets/web/
+    - assets/web/assets/
     - assets/statement.txt
     - assets/images/
     - assets/images/douyin_emoji/
