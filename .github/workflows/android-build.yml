@@ -99,6 +99,28 @@ jobs:
         run: flutter test
 
       # ---------- APK ----------
+      - name: Setup release signing (from Secrets)
+        if: ${{ steps.resolve.outputs.build_type == 'release' }}
+        working-directory: simple_live_app
+        env:
+          LAN_KEYSTORE_BASE64: ${{ secrets.LAN_KEYSTORE_BASE64 }}
+          LAN_KEYSTORE_PASSWORD: ${{ secrets.LAN_KEYSTORE_PASSWORD }}
+          LAN_KEY_ALIAS: ${{ secrets.LAN_KEY_ALIAS }}
+          LAN_KEY_PASSWORD: ${{ secrets.LAN_KEY_PASSWORD }}
+        run: |
+          if [ -z "$LAN_KEYSTORE_BASE64" ]; then
+            echo "!! 未配置签名 Secrets，release 将回退 debug 签名"
+            exit 0
+          fi
+          echo "$LAN_KEYSTORE_BASE64" | base64 -d > release-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=../release-keystore.jks
+          storePassword=$LAN_KEYSTORE_PASSWORD
+          keyAlias=$LAN_KEY_ALIAS
+          keyPassword=$LAN_KEY_PASSWORD
+          EOF
+          ls -la release-keystore.jks android/key.properties
+
       - name: Build APK (debug / arm64)
         if: ${{ steps.resolve.outputs.build_type == 'debug' && steps.resolve.outputs.target_abi == 'arm64-v8a' }}
         working-directory: simple_live_app
