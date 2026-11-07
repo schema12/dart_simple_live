@@ -22,7 +22,7 @@ class DanmakuSession {
       return;
     }
     try {
-      socket.add(utf8.encode(json.encode(message)));
+      socket.add(json.encode(message));
     } catch (_) {
       closed = true;
     }

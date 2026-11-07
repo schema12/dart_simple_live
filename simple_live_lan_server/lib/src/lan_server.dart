@@ -306,6 +306,10 @@ class LanServer {
 
   Future<void> _handleApi(HttpRequest request) async {
     final path = request.uri.path;
+    // /api/clients/<id>（撤销客户端）
+    if (path.startsWith('/api/clients/')) {
+      return _apiClients(request);
+    }
     switch (path) {
       // ignore: no_default_cases — default 分支在末尾返回 404
       case '/api/platforms':
