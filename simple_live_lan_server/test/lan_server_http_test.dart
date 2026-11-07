@@ -305,7 +305,8 @@ void main() {
     final chat = received.firstWhere((m) => m['type'] == 'chat');
     expect(chat['user'], '测试用户');
     expect(chat['text'], '你好局域网');
-    expect(chat['color'], '#FF0000');
+    // LiveMessageColor.toString() 输出小写十六进制
+    expect((chat['color'] as String).toLowerCase(), '#ff0000');
 
     // 心跳
     ws.add(utf8.encode(json.encode({'type': 'ping'})));
