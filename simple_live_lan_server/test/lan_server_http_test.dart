@@ -158,7 +158,7 @@ void main() {
     expect((qs.first as Map)['quality'], '原画');
   });
 
-  test('播放地址返回 format 与可选代理路径', () async {
+  test('播放地址返回 format；auto 模式附带代理路径用于回退', () async {
     final r = await getJson('/api/stream', query: {
       'token': token,
       'platform': 'huya',
@@ -171,7 +171,18 @@ void main() {
     expect(urls, isNotEmpty);
     expect((urls.first as Map)['format'], 'flv');
     expect((urls.first as Map).keys, contains('url'));
-    expect((urls.first as Map).keys, isNot(contains('proxy')));
+    // auto 模式：直连与代理路径同时返回，客户端直连失败时自动回退
+    expect((urls.first as Map).keys, contains('proxy'));
+    // proxy=0 时不返回代理地址
+    final r2 = await getJson('/api/stream', query: {
+      'token': token,
+      'platform': 'huya',
+      'id': '1001',
+      'quality': '0',
+      'proxy': '0',
+    });
+    final urls2 = ((r2['body'] as Map)['data'] as Map)['urls'] as List;
+    expect((urls2.first as Map).keys, isNot(contains('proxy')));
   });
 
   test('proxy=1 时播放地址附带代理路径且代理可回源', () async {
