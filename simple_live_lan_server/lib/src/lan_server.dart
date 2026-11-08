@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 import 'package:simple_live_lan_server/src/auth/access_control.dart';
 import 'package:simple_live_lan_server/src/danmaku/danmaku_hub.dart';
@@ -457,24 +459,23 @@ class LanServer {
       try {
         final data = quality.data;
         if (data is Map && data['urls'] is List && (data['urls'] as List).isNotEmpty) {
-          final huyaSite = hub.site('huya') as HuyaSite;
           final line = (data['urls'] as List).first as HuyaLineModel;
           final bitRate = data['bitRate'] is int ? data['bitRate'] as int : 0;
-          // HLS 必须使用页面下发的 hlsAntiCode（tars_mobile 上下文），
-          // FLV 的 CDN token 用于 hls.huya.com 会被 403
-          final anti = huyaSite.buildAntiCode(
+          final anti = _buildHuyaHlsAntiCode(
+            line.hlsAntiCode,
             line.streamName,
             line.presenterUid,
-            line.hlsAntiCode,
           );
-          var query = '$anti&codec=264';
-          if (bitRate > 0) {
-            query += '&ratio=$bitRate';
+          if (anti != null && anti.isNotEmpty) {
+            var query = '$anti&codec=264';
+            if (bitRate > 0) {
+              query += '&ratio=$bitRate';
+            }
+            final hlsUrls = ['al', 'tx']
+                .map((h) => 'http://$h.hls.huya.com/src/${line.streamName}.m3u8?$query')
+                .toList();
+            allUrls.insertAll(0, hlsUrls);
           }
-          final hlsUrls = ['al', 'tx']
-              .map((h) => 'http://$h.hls.huya.com/src/${line.streamName}.m3u8?$query')
-              .toList();
-          allUrls.insertAll(0, hlsUrls);
         }
       } catch (_) {
         // HLS 构造失败：仅保留 FLV 线路
@@ -548,6 +549,72 @@ class LanServer {
     await config.tokenSaver?.call(newToken);
     _events.add(LanServerEvent('tokenReset'));
     await HttpHelpers.ok(request, {'token': newToken});
+  }
+
+  /// 构造虎牙 HLS 防盗链参数。
+  ///
+  /// 逻辑与 core 的 buildAntiCode 一致，但输出时对 fm 等值做了 URL 编码：
+  /// hlsAntiCode 的 fm 是 base64（含 "+"/"/" 字符），不编码会被 CDN
+  /// 解析成空格导致签名校验失败（403）。经实测 iPad/移动 UA + 本构造
+  /// 可直接取得 m3u8 与分片（ACAO:*），iPad Safari 可原生直连播放。
+  String? _buildHuyaHlsAntiCode(
+    String antiCode,
+    String stream,
+    int presenterUid,
+  ) {
+    final mapAnti = Uri(query: antiCode).queryParametersAll;
+    if (!mapAnti.containsKey('fm') ||
+        !mapAnti.containsKey('wsTime') ||
+        !mapAnti.containsKey('fs')) {
+      return null;
+    }
+    final ctype = mapAnti['ctype']?.first ?? 'tars_mobile';
+    final platformId = int.tryParse(mapAnti['t']?.first ?? '103') ?? 103;
+    final isWap = platformId == 103;
+    final clacStartTime = DateTime.now().millisecondsSinceEpoch;
+    final seqId = presenterUid + clacStartTime;
+    final secretHash =
+        md5.convert(utf8.encode('$seqId|$ctype|$platformId')).toString();
+    int rotl64(int t) {
+      final low = t & 0xFFFFFFFF;
+      final rotatedLow = ((low << 8) | (low >> 24)) & 0xFFFFFFFF;
+      final high = t & ~0xFFFFFFFF;
+      return high | rotatedLow;
+    }
+
+    final convertUid = rotl64(presenterUid);
+    final calcUid = isWap ? presenterUid : convertUid;
+    final fm = utf8.decode(
+      base64.decode(Uri.decodeComponent(mapAnti['fm']!.first)),
+    );
+    final secretPrefix = fm.split('_').first;
+    final wsTime = mapAnti['wsTime']!.first;
+    final secretStr = '${secretPrefix}_${calcUid}_${stream}_${secretHash}_${wsTime}';
+    final wsSecret = md5.convert(utf8.encode(secretStr)).toString();
+    final rnd = Random();
+    final ct = ((int.parse(wsTime, radix: 16) + rnd.nextDouble()) * 1000)
+        .toInt();
+    final uuid =
+        (((ct % 1e10) + rnd.nextDouble()) * 1e3 % 0xFFFFFFFF)
+            .toInt()
+            .toString();
+    final params = <String, String>{
+      'wsSecret': wsSecret,
+      'wsTime': wsTime,
+      'seqid': seqId.toString(),
+      'ctype': ctype,
+      'ver': '1',
+      'fs': mapAnti['fs']!.first,
+      'fm': Uri.encodeComponent(mapAnti['fm']!.first),
+      't': platformId.toString(),
+    };
+    if (isWap) {
+      params['uid'] = presenterUid.toString();
+      params['uuid'] = uuid;
+    } else {
+      params['u'] = convertUid.toString();
+    }
+    return params.entries.map((e) => '${e.key}=${e.value}').join('&');
   }
 
   Future<void> _apiFollows(HttpRequest request) async {
