@@ -443,6 +443,37 @@ class LanServer {
     final quality = qualities[index];
     final playUrl = await hub.getPlayUrls(platform, detail, quality);
 
+    // 虎牙追加 HLS 线路：分片传输更抗 CDN 切割，且 iPad Safari 可原生播放
+    // （原生 HLS 不受 CORS 限制，无需经手机代理）。构造失败不影响 FLV 线路。
+    final allUrls = <String>[...playUrl.urls];
+    final extraHeaders = playUrl.headers;
+    if (platform == 'huya') {
+      try {
+        final data = quality.data;
+        if (data is Map && data['urls'] is List && (data['urls'] as List).isNotEmpty) {
+          final huyaSite = hub.site('huya') as HuyaSite;
+          final line = (data['urls'] as List).first as HuyaLineModel;
+          final bitRate = data['bitRate'] is int ? data['bitRate'] as int : 0;
+          final token = await huyaSite.getCndTokenInfoEx(line.streamName);
+          final anti = huyaSite.buildAntiCode(
+            line.streamName,
+            line.presenterUid,
+            token,
+          );
+          var query = '$anti&codec=264';
+          if (bitRate > 0) {
+            query += '&ratio=$bitRate';
+          }
+          final hlsUrls = ['al', 'tx']
+              .map((h) => 'http://$h.hls.huya.com/src/${line.streamName}.m3u8?$query')
+              .toList();
+          allUrls.insertAll(0, hlsUrls);
+        }
+      } catch (_) {
+        // HLS 构造失败：仅保留 FLV 线路
+      }
+    }
+
     // proxy 参数语义：
     // '1'    → 仅返回代理地址
     // '0'    → 仅返回直连地址
@@ -459,10 +490,10 @@ class LanServer {
         useProxy = 'auto';
         break;
     }
-    final urls = playUrl.urls.map((url) {
+    final urls = allUrls.map((url) {
       String? proxyPath;
       if (useProxy != 'none') {
-        final id = proxy.register(url, headers: playUrl.headers ?? const {});
+        final id = proxy.register(url, headers: extraHeaders ?? const {});
         proxyPath = '/api/proxy/$id';
       }
       return {
