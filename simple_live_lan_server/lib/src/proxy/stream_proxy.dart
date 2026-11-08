@@ -92,8 +92,15 @@ class StreamProxy {
     HttpClientRequest? upstream;
     try {
       final req = await _client.openUrl('GET', uri);
-      // 平台要求的请求头（UA/Referer 等）
+      // 平台要求的请求头（Referer 等）
       entry.headers.forEach(req.headers.set);
+      // UA 策略：优先透传客户端自身的 User-Agent（部分平台按 UA+Range 组合做
+      // 防盗链指纹，如虎牙：浏览器 UA + 无 Range 才放行），客户端没有时才用
+      // 平台建议的 UA。
+      final clientUa = request.headers.value(HttpHeaders.userAgentHeader);
+      if (clientUa != null && clientUa.isNotEmpty) {
+        req.headers.set(HttpHeaders.userAgentHeader, clientUa);
+      }
       // 透传 Range
       final range = request.headers.value(HttpHeaders.rangeHeader);
       if (range != null && range.isNotEmpty) {
