@@ -35,17 +35,21 @@ let dpr = 1
 function push(text: string, color: string): void {
   if (!props.enabled || !ctx || cssWidth <= 0) return
   const fontSize = settings.danmaku.fontSize
-  ctx.font = `bold ${fontSize}px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif`
+  ctx.font = `${settings.danmaku.bold ? 'bold ' : ''}${fontSize}px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif`
   const width = ctx.measureText(text).width
   if (width > cssWidth * 0.9) return // 超长弹幕丢弃
 
   const baseSpeed = Math.max(cssWidth / 8, 80) * settings.danmaku.speed
   const speed = baseSpeed * (0.9 + Math.random() * 0.3)
 
-  // 找一个可用行：上一条已经离开出安全间距
+  // 找一个可用行：上一条已经离开出安全间距（行范围受显示区域限制）
   let row = -1
   const gap = Math.max(30, width * 0.25)
-  for (let i = 0; i < settings.danmaku.maxRows; i++) {
+  const effectiveRows = Math.max(
+    1,
+    Math.min(settings.danmaku.maxRows, Math.floor((cssHeight * settings.danmaku.area) / (settings.danmaku.fontSize + 8))),
+  )
+  for (let i = 0; i < effectiveRows; i++) {
     const last = rowLastEnd[i] ?? -Infinity
     if (last <= cssWidth + gap * -1 || last === -Infinity || last <= cssWidth - 0) {
       // 行从未用过，或上一条已完全离开
@@ -57,7 +61,7 @@ function push(text: string, color: string): void {
   }
   if (row === -1) {
     // 行数未满则扩展
-    if (rowLastEnd.length < settings.danmaku.maxRows) {
+    if (rowLastEnd.length < effectiveRows) {
       row = rowLastEnd.length
     } else {
       // 全满：找最快离开的行
@@ -102,8 +106,8 @@ function frame(ts: number): void {
   ctx.globalAlpha = settings.danmaku.opacity
   const fontSize = settings.danmaku.fontSize
   const rowHeight = fontSize + 8
-  ctx.font = `bold ${fontSize}px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif`
-  ctx.lineWidth = Math.max(2, fontSize / 12)
+  ctx.font = `${settings.danmaku.bold ? 'bold ' : ''}${fontSize}px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif`
+  ctx.lineWidth = settings.danmaku.stroke ? Math.max(2, settings.danmaku.strokeWidth) : 0
   ctx.strokeStyle = 'rgba(0,0,0,0.65)'
   ctx.textBaseline = 'middle'
 

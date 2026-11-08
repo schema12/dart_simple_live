@@ -13,6 +13,12 @@ import { platformMeta, PLATFORMS } from '../platforms'
 
 const favorites = useFavorites()
 const router = useRouter()
+function sortedList(): FavoriteItem[] {
+  const pinned = favorites.state.items
+    .filter((i) => i.pinnedAt)
+    .sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0))
+  return [...pinned, ...favorites.state.items.filter((i) => !i.pinnedAt)]
+}
 const msg = ref('')
 const importing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -173,12 +179,14 @@ async function syncFromPhone(): Promise<void> {
       还没有收藏，去直播间点个 ☆ 吧
     </div>
 
+    <template v-if="settings.favoritesLayout === 'list' && favorites.state.items.length > 0">
     <!-- 紧凑列表布局 -->
-    <div v-else-if="settings.favoritesLayout === 'list'" class="fav-list">
+    <div class="fav-list">
       <div
-        v-for="f in favorites.state.items"
+        v-for="f in sortedList()"
         :key="`${f.platform}-${f.roomId}`"
         class="fav-compact card"
+        :class="{ pinned: !!f.pinnedAt }"
         @click="openRoom(f)"
       >
         <img
@@ -192,11 +200,26 @@ async function syncFromPhone(): Promise<void> {
           {{ platformMeta(f.platform).short }}
         </span>
         <div class="fc-info">
-          <div class="fc-title">{{ f.title || f.userName }}</div>
+          <div class="fc-title">
+            <svg v-if="f.pinnedAt" class="pin-ic" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 3v2l-1 1v5l3 2v2h-6v6l-1 1-1-1v-6H4v-2l3-2V6L6 5V3z" />
+            </svg>
+            {{ f.title || f.userName }}
+          </div>
           <div class="fc-meta">
             {{ f.userName }} · {{ platformName(f.platform) }} · 收藏于 {{ formatTime(f.addedAt) }}
           </div>
         </div>
+        <button
+          class="fc-pin"
+          :class="{ on: !!f.pinnedAt }"
+          :aria-label="f.pinnedAt ? '取消置顶' : '置顶'"
+          @click.stop="favorites.togglePin(f)"
+        >
+          <svg viewBox="0 0 24 24" :fill="f.pinnedAt ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+            <path d="M16 3v2l-1 1v5l3 2v2h-6v6l-1 1-1-1v-6H4v-2l3-2V6L6 5V3z" />
+          </svg>
+        </button>
         <button
           class="fc-del"
           :aria-label="'取消收藏 ' + f.title"
@@ -208,15 +231,30 @@ async function syncFromPhone(): Promise<void> {
         </button>
       </div>
     </div>
+    </template>
 
+    <template v-if="settings.favoritesLayout === 'card' && favorites.state.items.length > 0">
     <!-- 卡片网格布局 -->
-    <div v-else class="fav-grid">
-      <RoomCard
-        v-for="f in favorites.state.items"
-        :key="`${f.platform}-${f.roomId}`"
-        :room="asRoom(f)"
-      />
+    <div class="fav-grid">
+      <div
+        v-for="it in sortedList()"
+        :key="`${it.platform}-${it.roomId}`"
+        class="fav-card-wrap"
+      >
+        <RoomCard :room="asRoom(it)" />
+        <button
+          class="pin-overlay"
+          :class="{ on: !!it.pinnedAt }"
+          :aria-label="it.pinnedAt ? '取消置顶' : '置顶'"
+          @click.stop="favorites.togglePin(it)"
+        >
+          <svg viewBox="0 0 24 24" :fill="it.pinnedAt ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+            <path d="M16 3v2l-1 1v5l3 2v2h-6v6l-1 1-1-1v-6H4v-2l3-2V6L6 5V3z" />
+          </svg>
+        </button>
+      </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -308,7 +346,8 @@ async function syncFromPhone(): Promise<void> {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fc-del {
+.fc-del,
+.fc-pin {
   flex-shrink: 0;
   width: 34px;
   height: 34px;
@@ -319,12 +358,52 @@ async function syncFromPhone(): Promise<void> {
   color: var(--text-tertiary);
   background: var(--bg-hover);
 }
-.fc-del svg {
+.fc-del svg,
+.fc-pin svg {
   width: 16px;
   height: 16px;
 }
 .fc-del:active {
   color: var(--danger);
+}
+.fc-pin.on {
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+.fav-compact.pinned {
+  border-left: 3px solid var(--accent);
+}
+.pin-ic {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+.fav-card-wrap {
+  position: relative;
+}
+.pin-overlay {
+  position: absolute;
+  top: 6px;
+  left: 42px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+}
+.pin-overlay svg {
+  width: 15px;
+  height: 15px;
+}
+.pin-overlay.on {
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 /* 卡片网格布局 */

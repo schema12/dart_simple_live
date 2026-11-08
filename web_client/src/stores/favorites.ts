@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import type { RoomDetail, RoomItem } from '../api/types'
 
 export interface FavoriteItem {
@@ -8,6 +8,7 @@ export interface FavoriteItem {
   userName: string
   cover: string
   addedAt: number
+  pinnedAt?: number // 置顶时间戳；置顶项排在列表最前（支持多个置顶）
 }
 
 const STORAGE_KEY = 'sl_favorites'
@@ -24,6 +25,15 @@ function load(): FavoriteItem[] {
 }
 
 const state = reactive<{ items: FavoriteItem[] }>({ items: load() })
+
+/** 置顶项在前（按置顶时间倒序），其余按收藏时间倒序。 */
+const sortedItems = computed(() => {
+  const pinned = state.items
+    .filter((i) => i.pinnedAt)
+    .sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0))
+  const rest = state.items.filter((i) => !i.pinnedAt)
+  return [...pinned, ...rest]
+})
 
 function persist(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
@@ -73,6 +83,16 @@ export function useFavorites() {
     persist()
   }
 
+  /** 置顶/取消置顶（支持多个置顶）。 */
+  function togglePin(f: FavoriteItem): void {
+    const item = state.items.find(
+      (i) => keyOf(i.platform, i.roomId) === keyOf(f.platform, f.roomId),
+    )
+    if (!item) return
+    item.pinnedAt = item.pinnedAt ? undefined : Date.now()
+    persist()
+  }
+
   function toggle(detail: RoomDetail): boolean {
     if (has(detail.platform, detail.roomId)) {
       remove(detail.platform, detail.roomId)
@@ -82,5 +102,5 @@ export function useFavorites() {
     return true
   }
 
-  return { state, has, addFromItem, addFromDetail, remove, toggle }
+  return { state, sortedItems, has, addFromItem, addFromDetail, remove, toggle, togglePin }
 }

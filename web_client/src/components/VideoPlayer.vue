@@ -15,12 +15,15 @@ import { settings } from '../stores/settings'
 const props = defineProps<{
   stream: StreamInfo | null
   autoplay: boolean
+  /** 重取流后希望恢复的线路（url 索引 + 是否代理），用于保持卡住前的线路 */
+  initialLine?: { line: number; viaProxy: boolean } | null
 }>()
 
 const emit = defineEmits<{
   (e: 'selectQuality', index: number): void
   (e: 'refetch'): void
   (e: 'playing'): void
+  (e: 'lineChanged', line: number, viaProxy: boolean): void
 }>()
 
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -103,6 +106,18 @@ function resetAndPlay(stream: StreamInfo): void {
   }
   lineOfAttempt.value = lines
   attemptIndex.value = 0
+  // 恢复到卡住前的线路（刷新/重取流场景）
+  if (props.initialLine && props.initialLine.line >= 0) {
+    const target = lines.findIndex(
+      (l) => l === props.initialLine!.line,
+    )
+    if (target >= 0) {
+      const attempt = attempts.value[target]
+      if (attempt && (attempt.kind === 'proxy') === props.initialLine.viaProxy) {
+        attemptIndex.value = target
+      }
+    }
+  }
   hadPlaying.value = false
   needGesture.value = false
   errorMsg.value = ''
@@ -145,6 +160,11 @@ async function playAttempt(): Promise<void> {
   const attempt = currentAttempt.value
   if (!video || !attempt) return
   destroyEngine()
+  emit(
+    'lineChanged',
+    lineOfAttempt.value[attemptIndex.value] ?? -1,
+    attempt.kind === 'proxy',
+  )
   state.value = 'loading'
   startWatchdog(15000)
 
@@ -294,8 +314,107 @@ function onAttemptFailed(reason: string): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 卡顿看门狗：播放状态下画面停滞（FLV 直播流偶发断流）→ 自动重取当前线路
+// ---------------------------------------------------------------------------
+let stallTimer: number | null = null
+let lastStallCheck = 0
+let stallCount = 0
+
+function startStallWatchdog(): void {
+  stopStallWatchdog()
+  lastStallCheck = 0
+  stallTimer = window.setInterval(() => {
+    const video = videoEl.value
+    if (!video || state.value !== 'playing') return
+    const now = video.currentTime
+    if (lastStallCheck > 0 && Math.abs(now - lastStallCheck) < 0.15) {
+      // 2 秒内画面没有前进 → 卡住
+      stallCount++
+      if (stallCount >= 2) {
+        // 连续 2 次检测（约 6 秒）仍停滞 → 重取当前线路
+        stallCount = 0
+        hadPlaying.value = true
+        onAttemptFailed('画面停滞')
+        return
+      }
+    } else {
+      stallCount = 0
+    }
+    lastStallCheck = now
+  }, 2000)
+}
+
+function stopStallWatchdog(): void {
+  if (stallTimer !== null) {
+    clearInterval(stallTimer)
+    stallTimer = null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 声音丢失检测（仅桌面 MSE 播放）：画面正常但持续静默 → 软刷新修复
+// ---------------------------------------------------------------------------
+let audioCtx: AudioContext | null = null
+let audioAnalyser: AnalyserNode | null = null
+let audioSource: MediaElementAudioSourceNode | null = null
+let audioTimer: number | null = null
+let silentSamples = 0
+
+function trySetupAudioDetector(): void {
+  // iOS/iPadOS Safari 的 WebAudio 对 MSE/HLS 支持不完整，仅桌面启用
+  const isSafariLike = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  if (isSafariLike) return
+  const video = videoEl.value
+  if (!video || audioCtx) return
+  try {
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctor) return
+    audioCtx = new Ctor()
+    audioSource = audioCtx.createMediaElementSource(video)
+    audioAnalyser = audioCtx.createAnalyser()
+    audioAnalyser.fftSize = 2048
+    audioSource.connect(audioAnalyser)
+    audioAnalyser.connect(audioCtx.destination)
+    audioTimer = window.setInterval(() => {
+      if (!audioAnalyser || !videoEl.value) return
+      // 仅同源代理流启用：跨源直连流的 WebAudio 会被静音污染，检测无意义
+      if (currentAttempt.value?.kind !== 'proxy') {
+        silentSamples = 0
+        return
+      }
+      if (state.value !== 'playing' || muted.value) {
+        silentSamples = 0
+        return
+      }
+      const buf = new Uint8Array(audioAnalyser.frequencyBinCount)
+      audioAnalyser.getByteTimeDomainData(buf)
+      let peak = 0
+      for (let i = 0; i < buf.length; i++) {
+        peak = Math.max(peak, Math.abs(buf[i] - 128))
+      }
+      // 视频在走、未静音，但音频持续 10 秒完全无声 → 判定声音丢失
+      if (peak < 1) {
+        silentSamples++
+        if (silentSamples >= 5) {
+          silentSamples = 0
+          hadPlaying.value = true
+          onAttemptFailed('声音丢失')
+        }
+      } else {
+        silentSamples = 0
+      }
+    }, 2000)
+  } catch {
+    // 检测器失败不影响播放
+  }
+}
+
 function destroyEngine(): void {
   clearWatchdog()
+  stopStallWatchdog()
   if (hls) {
     try {
       hls.destroy()
@@ -335,6 +454,8 @@ function onPlaying(): void {
   hadPlaying.value = true
   clearWatchdog()
   needGesture.value = false
+  startStallWatchdog()
+  trySetupAudioDetector()
   emit('playing')
 }
 
@@ -428,7 +549,19 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', onFsChange)
   document.removeEventListener('webkitfullscreenchange', onFsChange)
   if (refetchTimer !== null) clearTimeout(refetchTimer)
+  stopStallWatchdog()
+  if (audioTimer !== null) clearInterval(audioTimer)
   destroyEngine()
+  try {
+    audioSource?.disconnect()
+    audioAnalyser?.disconnect()
+    audioCtx?.close()
+  } catch {
+    /* ignore */
+  }
+  audioSource = null
+  audioAnalyser = null
+  audioCtx = null
 })
 </script>
 
@@ -504,6 +637,11 @@ onBeforeUnmount(() => {
 
         <div class="spacer"></div>
 
+        <button class="ctrl" @click.stop="emit('refetch')" aria-label="刷新直播流">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
+          </svg>
+        </button>
         <button class="ctrl" @click.stop="toggleFullscreen" aria-label="全屏">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />

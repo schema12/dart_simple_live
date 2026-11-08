@@ -11,6 +11,11 @@ export interface DanmakuSettings {
   density: number // 最大同时显示条数 5-50
   maxRows: number // 最大行数 1-15
   showTop: boolean // 顶部固定区（醒目留言）
+  area: number // 显示区域比例 1=全屏 0.5=半屏 0.25=四分之一
+  stroke: boolean // 描边开关
+  strokeWidth: number // 描边宽度 px
+  bold: boolean // 粗体字重
+  emoji: boolean // 显示弹幕表情
 }
 
 export type FavoritesLayout = 'list' | 'card'
@@ -37,6 +42,11 @@ const defaults: Settings = {
     density: 24,
     maxRows: 10,
     showTop: true,
+    area: 1,
+    stroke: true,
+    strokeWidth: 2,
+    bold: true,
+    emoji: true,
   },
   defaultQuality: 0,
   autoplay: true,
