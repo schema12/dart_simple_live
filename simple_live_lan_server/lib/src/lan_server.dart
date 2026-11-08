@@ -468,7 +468,9 @@ class LanServer {
           );
           if (anti != null && anti.isNotEmpty) {
             var query = '$anti&codec=264';
-            if (bitRate > 0) {
+            // 实测：hls.huya.com 拒绝原画档 ratio=20000（403），
+            // 低档（2000/10000）可用；原画档不带 ratio 即为 HLS 最高码率
+            if (bitRate > 0 && bitRate < 19000) {
               query += '&ratio=$bitRate';
             }
             final hlsUrls = ['al', 'tx']
