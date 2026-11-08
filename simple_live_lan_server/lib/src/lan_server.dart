@@ -443,10 +443,25 @@ class LanServer {
     final quality = qualities[index];
     final playUrl = await hub.getPlayUrls(platform, detail, quality);
 
-    final useProxy = proxyMode == '1' || (proxyMode == 'auto' && config.proxyByDefault);
+    // proxy 参数语义：
+    // '1'    → 仅返回代理地址
+    // '0'    → 仅返回直连地址
+    // 'auto' → 同时返回直连与代理地址（客户端先直连后自动回退代理）
+    final String useProxy;
+    switch (proxyMode) {
+      case '1':
+        useProxy = 'all';
+        break;
+      case '0':
+        useProxy = 'none';
+        break;
+      default:
+        useProxy = 'auto';
+        break;
+    }
     final urls = playUrl.urls.map((url) {
       String? proxyPath;
-      if (useProxy) {
+      if (useProxy != 'none') {
         final id = proxy.register(url, headers: playUrl.headers ?? const {});
         proxyPath = '/api/proxy/$id';
       }
