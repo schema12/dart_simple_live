@@ -33,6 +33,7 @@ class LanServer {
     required this.assetSource,
     LiveHub? hub,
     StreamProxy? proxy,
+    this.followsProvider,
   })  : hub = hub ?? LiveHub(),
         proxy = proxy ?? StreamProxy() {
     accessControl = AccessControl(token: config.initialToken ?? '');
@@ -52,6 +53,9 @@ class LanServer {
   late final StaticFiles staticFiles;
   final LiveHub hub;
   final StreamProxy proxy;
+
+  /// 手机端关注列表提供者（宿主注入，供 Web 客户端导入）。
+  Future<List<Map<String, Object?>>> Function()? followsProvider;
 
   HttpServer? _server;
   LanServerStatus _status = LanServerStatus.stopped;
@@ -335,6 +339,8 @@ class LanServer {
         return _apiTokenReset(request);
       case '/api/server':
         return _apiServerInfo(request);
+      case '/api/follows':
+        return _apiFollows(request);
       case '/api/logs':
         await HttpHelpers.ok(request, accessControl.recentLogs());
         return;
@@ -454,11 +460,12 @@ class LanServer {
           final huyaSite = hub.site('huya') as HuyaSite;
           final line = (data['urls'] as List).first as HuyaLineModel;
           final bitRate = data['bitRate'] is int ? data['bitRate'] as int : 0;
-          final token = await huyaSite.getCndTokenInfoEx(line.streamName);
+          // HLS 必须使用页面下发的 hlsAntiCode（tars_mobile 上下文），
+          // FLV 的 CDN token 用于 hls.huya.com 会被 403
           final anti = huyaSite.buildAntiCode(
             line.streamName,
             line.presenterUid,
-            token,
+            line.hlsAntiCode,
           );
           var query = '$anti&codec=264';
           if (bitRate > 0) {
@@ -541,6 +548,16 @@ class LanServer {
     await config.tokenSaver?.call(newToken);
     _events.add(LanServerEvent('tokenReset'));
     await HttpHelpers.ok(request, {'token': newToken});
+  }
+
+  Future<void> _apiFollows(HttpRequest request) async {
+    final provider = followsProvider;
+    if (provider == null) {
+      await HttpHelpers.ok(request, <Map<String, Object?>>[]);
+      return;
+    }
+    final follows = await provider();
+    await HttpHelpers.ok(request, follows);
   }
 
   Future<void> _apiServerInfo(HttpRequest request) async {

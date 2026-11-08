@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'HomeView' })
 import { onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import type { RoomItem } from '../api/types'

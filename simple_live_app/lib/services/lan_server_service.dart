@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:simple_live_app/app/log.dart';
 import 'package:simple_live_app/app/sites.dart';
+import 'package:simple_live_app/services/follow_service.dart';
 import 'package:simple_live_app/services/local_storage_service.dart';
 import 'package:simple_live_app/app/utils.dart';
 import 'package:simple_live_core/simple_live_core.dart';
@@ -31,6 +32,16 @@ class LanServerService extends GetxService {
   Timer? _statsTimer;
 
   bool get isRunning => status.value == LanServerStatus.running;
+
+  /// 读取手机 App 内的关注列表（供 Web 客户端一键导入）。
+  Future<List<Map<String, Object?>>> _readFollows() async {
+    try {
+      final follows = FollowService.instance.followList;
+      return follows.map((f) => f.toJson()).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 
   /// 构建共享 App 站点实例的 LiveHub（Cookie/BUVID/WBI 缓存与 App 内一致）。
   LiveHub buildHub() {
@@ -70,6 +81,7 @@ class LanServerService extends GetxService {
         ),
         assetSource: FlutterAssetSource(),
         hub: buildHub(),
+        followsProvider: _readFollows,
       );
 
       _eventSub ??= _server!.events.listen(_onEvent);

@@ -9,6 +9,9 @@ const { paired } = usePairing()
 
 const isRoomRoute = computed(() => route.name === 'room')
 
+// 需要 keep-alive 的列表页组件名
+const keepNames = ['HomeView', 'PlatformView', 'SearchView', 'FavoritesView']
+
 const navs = computed(() => [
   { name: 'home', label: '首页', icon: 'home', to: '/' },
   { name: 'search', label: '搜索', icon: 'search', to: '/search' },
@@ -19,7 +22,12 @@ const navs = computed(() => [
 
 <template>
   <div class="app-root">
-    <router-view v-if="paired || route.name === 'pair'" />
+    <router-view v-if="paired || route.name === 'pair'" v-slot="{ Component }">
+      <!-- keep-alive 保留列表页状态：从直播间返回时恢复进入时的板块与数据 -->
+      <keep-alive :include="keepNames">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
     <PairView v-else />
     <nav v-if="paired && !isRoomRoute" class="bottom-nav">
       <router-link

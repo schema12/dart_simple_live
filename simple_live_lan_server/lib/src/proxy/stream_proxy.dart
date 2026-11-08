@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:collection';
 import 'dart:io';
 import 'dart:math';
+
+import 'package:simple_live_lan_server/src/util/map_utils.dart';
 
 /// 视频代理：把 /api/stream 解析出的 CDN 地址登记为短期代理 ID，
 /// 浏览器通过 /api/proxy/<id> 回源取流。
@@ -10,7 +13,7 @@ import 'dart:math';
 class StreamProxy {
   StreamProxy({
     this.entryTtl = const Duration(minutes: 30),
-    this.maxEntries = 256,
+    this.maxEntries = 1024,
   }) {
     _client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 15)
@@ -55,7 +58,13 @@ class StreamProxy {
 
   ProxyEntry? find(String id) {
     _gc();
-    return _entries[id];
+    final entry = _entries[id];
+    if (entry != null) {
+      // LRU touch：活跃条目（如正在刷新的 m3u8）不被滚动淘汰，并续期
+      _entries.setEntryFirst(id, entry);
+      entry.createdAt = DateTime.now();
+    }
+    return entry;
   }
 
   void _gc() {
@@ -115,14 +124,8 @@ class StreamProxy {
       response.statusCode = resp.statusCode;
       // 透传关键响应头
       _copyHeader(resp, response, HttpHeaders.contentTypeHeader);
-      _copyHeader(resp, response, HttpHeaders.contentLengthHeader);
       _copyHeader(resp, response, HttpHeaders.contentRangeHeader);
       _copyHeader(resp, response, HttpHeaders.acceptRangesHeader);
-      response.headers.set(
-        HttpHeaders.acceptEncodingHeader,
-        'identity',
-      );
-      response.bufferOutput = false;
 
       // 客户端断开时取消上游请求
       unawaited(
@@ -132,6 +135,32 @@ class StreamProxy {
           upstream?.abort();
         }),
       );
+
+      final contentType = resp.headers.value(HttpHeaders.contentTypeHeader) ?? '';
+      final isPlaylist =
+          contentType.contains('mpegurl') || uri.path.toLowerCase().endsWith('.m3u8');
+      if (isPlaylist) {
+        // m3u8 重写：把分片/子播放列表地址替换为本服务代理路径，
+        // 使浏览器播放器（hls.js）能全程同源取流（规避 CDN CORS）
+        final body = await resp.transform(utf8.decoder).join();
+        final rewritten = _rewritePlaylist(body, uri, entry.headers);
+        final bytes = utf8.encode(rewritten);
+        response.headers.set(
+          HttpHeaders.contentTypeHeader,
+          contentType.contains('mpegurl')
+              ? contentType
+              : 'application/vnd.apple.mpegurl',
+        );
+        response.headers.set(HttpHeaders.contentLengthHeader, bytes.length);
+        response.bufferOutput = false;
+        response.add(bytes);
+        await response.close();
+        return;
+      }
+
+      _copyHeader(resp, response, HttpHeaders.contentLengthHeader);
+      response.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
+      response.bufferOutput = false;
 
       await response.addStream(resp);
       await response.close();
@@ -144,6 +173,38 @@ class StreamProxy {
         await _safeError(request, HttpStatus.badGateway, '代理流错误: $e');
       }
     }
+  }
+
+  /// 重写 HLS 播放列表：每个分片/子列表/密钥地址注册为代理并替换为同源路径。
+  String _rewritePlaylist(
+    String body,
+    Uri baseUri,
+    Map<String, String> headers,
+  ) {
+    final base = baseUri;
+    final lines = body.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      if (trimmed.startsWith('#')) {
+        // EXT-X-KEY / EXT-X-MAP 的 URI="..." 属性
+        if (trimmed.contains('URI="')) {
+          lines[i] = line.replaceAllMapped(RegExp('URI="([^"]+)"'), (m) {
+            final abs = base.resolve(m.group(1)!).toString();
+            final id = register(abs, headers: headers);
+            return 'URI="/api/proxy/$id"';
+          });
+        }
+        continue;
+      }
+      final abs = base.resolve(trimmed).toString();
+      final id = register(abs, headers: headers);
+      lines[i] = '/api/proxy/$id';
+    }
+    return lines.join('\n');
   }
 
   bool _isClosed(HttpRequest request) {
@@ -193,7 +254,7 @@ class ProxyEntry {
   final String id;
   final String url;
   final Map<String, String> headers;
-  final DateTime createdAt;
+  DateTime createdAt;
   ProxyEntry({
     required this.id,
     required this.url,

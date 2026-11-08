@@ -24,6 +24,13 @@ function toggleFav(e: Event): void {
 
 function coverFallback(e: Event): void {
   const img = e.target as HTMLImageElement
+  // 第一级回退：去掉尺寸后缀（如 @400w.jpg），部分图床不支持该变体
+  const raw = img.getAttribute('src') ?? ''
+  if (!img.dataset.stripped && /@\d+w(\.\w+)?$/.test(raw)) {
+    img.dataset.stripped = '1'
+    img.src = raw.replace(/@\d+w(\.\w+)?$/, '')
+    return
+  }
   if (!img.dataset.fallback) {
     img.dataset.fallback = '1'
     img.src =
@@ -38,7 +45,12 @@ function coverFallback(e: Event): void {
 <template>
   <div class="room-card card" @click="open">
     <div class="cover-wrap">
-      <img :src="room.cover" loading="lazy" @error="coverFallback" />
+      <img
+        :src="room.cover"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        @error="coverFallback"
+      />
       <span class="badge platform-badge" :style="{ background: meta.gradient }">
         {{ meta.short }}
       </span>

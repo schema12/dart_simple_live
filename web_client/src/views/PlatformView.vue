@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'PlatformView' })
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client'

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SearchView' })
 import { ref } from 'vue'
 import { api } from '../api/client'
 import type { AnchorItem, RoomItem } from '../api/types'

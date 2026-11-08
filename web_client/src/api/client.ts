@@ -204,6 +204,20 @@ export const api = {
     proxy: 'auto' | '1' | '0' = 'auto',
   ) => request<StreamInfo>('/api/stream', { platform, id, quality, proxy }),
   server: () => request<ServerInfo>('/api/server'),
+  /** 手机 App 内的关注列表（用于 Web 收藏一键导入）。 */
+  follows: () =>
+    request<
+      Array<{
+        id: string
+        roomId: string
+        siteId: string
+        userName: string
+        face: string
+        roomTitle: string
+        roomCover: string
+        tag: string
+      }>
+    >('/api/follows'),
   clients: () => request<ClientInfo[]>('/api/clients'),
   revokeClient: (id: string) =>
     request<{ revoked: boolean }>(`/api/clients/${encodeURIComponent(id)}`, {}, { method: 'DELETE' }),

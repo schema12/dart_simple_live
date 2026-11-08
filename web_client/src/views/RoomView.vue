@@ -31,6 +31,14 @@ const isFavorite = computed(() =>
 
 // 弹幕
 const overlayRef = ref<InstanceType<typeof DanmakuOverlay> | null>(null)
+const playerRef = ref<InstanceType<typeof VideoPlayer> | null>(null)
+const selectedLine = ref(0)
+const showDanmakuPanel = ref(false)
+
+function selectLine(i: number): void {
+  selectedLine.value = i
+  playerRef.value?.playLine(i)
+}
 const chatList = ref<DanmakuMessage[]>([])
 const chatEl = ref<HTMLElement | null>(null)
 const wsState = ref<'connecting' | 'open' | 'closed'>('connecting')
@@ -85,6 +93,7 @@ async function loadStream(resetQuality = false): Promise<void> {
       currentQuality.value,
       settings.proxyMode === 'proxy' ? '1' : settings.proxyMode === 'direct' ? '0' : 'auto',
     )
+    selectedLine.value = 0
   } catch (e) {
     streamError.value = (e as Error).message
     stream.value = null
@@ -276,6 +285,7 @@ function toggleFavorite(): void {
     <div v-else-if="detail" class="room-body">
       <div class="player-col">
         <VideoPlayer
+          ref="playerRef"
           :stream="stream"
           :autoplay="settings.autoplay"
           @select-quality="selectQuality"
@@ -316,7 +326,7 @@ function toggleFavorite(): void {
           </button>
         </div>
 
-        <!-- 画质 / 弹幕开关 -->
+        <!-- 画质 / 线路 / 弹幕开关 -->
         <div v-if="isLive && qualities.length" class="quality-bar">
           <div class="quality-chips">
             <button
@@ -331,11 +341,60 @@ function toggleFavorite(): void {
           </div>
           <div class="bar-actions">
             <button
+              class="chip dm-setting-btn"
+              @click="showDanmakuPanel = !showDanmakuPanel"
+              aria-label="弹幕设置"
+            >
+              ⚙ 弹幕设置
+            </button>
+            <button
               class="chip"
               :class="{ active: settings.danmaku.enabled }"
               @click="settings.danmaku.enabled = !settings.danmaku.enabled"
             >
               弹幕 {{ settings.danmaku.enabled ? '开' : '关' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 就地弹幕设置面板 -->
+        <transition name="fade">
+          <div v-if="showDanmakuPanel" class="dm-panel card">
+            <div class="dm-row">
+              <span class="dm-label">字号 {{ settings.danmaku.fontSize }}px</span>
+              <input type="range" class="slider" min="14" max="40" step="1" v-model.number="settings.danmaku.fontSize" />
+            </div>
+            <div class="dm-row">
+              <span class="dm-label">不透明度 {{ Math.round(settings.danmaku.opacity * 100) }}%</span>
+              <input type="range" class="slider" min="0.1" max="1" step="0.05" v-model.number="settings.danmaku.opacity" />
+            </div>
+            <div class="dm-row">
+              <span class="dm-label">速度 ×{{ settings.danmaku.speed.toFixed(1) }}</span>
+              <input type="range" class="slider" min="0.5" max="3" step="0.1" v-model.number="settings.danmaku.speed" />
+            </div>
+            <div class="dm-row">
+              <span class="dm-label">行数 {{ settings.danmaku.maxRows }}</span>
+              <input type="range" class="slider" min="2" max="15" step="1" v-model.number="settings.danmaku.maxRows" />
+            </div>
+            <div class="dm-row">
+              <span class="dm-label">密度 {{ settings.danmaku.density }} 条</span>
+              <input type="range" class="slider" min="5" max="50" step="1" v-model.number="settings.danmaku.density" />
+            </div>
+          </div>
+        </transition>
+
+        <!-- 手动选线路 -->
+        <div v-if="isLive && stream && stream.urls.length > 1" class="quality-bar line-bar">
+          <span class="line-label">线路</span>
+          <div class="quality-chips">
+            <button
+              v-for="(u, i) in stream.urls"
+              :key="i"
+              class="chip"
+              :class="{ active: selectedLine === i }"
+              @click="selectLine(i)"
+            >
+              {{ i + 1 }}·{{ u.format.toUpperCase() }}{{ u.proxy ? '' : '' }}
             </button>
           </div>
         </div>
@@ -548,6 +607,42 @@ function toggleFavorite(): void {
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   overflow-x: auto;
+}
+.line-bar {
+  justify-content: flex-start;
+  padding-top: 0;
+}
+.line-label {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.dm-setting-btn {
+  flex-shrink: 0;
+}
+.dm-panel {
+  margin: 0 14px 12px;
+  padding: 14px 16px;
+}
+.dm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.dm-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 .quality-chips {
   display: flex;

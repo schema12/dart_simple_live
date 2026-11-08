@@ -44,6 +44,7 @@ interface Attempt {
 
 const attempts = ref<Attempt[]>([])
 const attemptIndex = ref(0)
+const lineOfAttempt = ref<number[]>([])
 const hadPlaying = ref(false)
 
 let hls: Hls | null = null
@@ -89,6 +90,18 @@ function buildAttempts(stream: StreamInfo): Attempt[] {
 function resetAndPlay(stream: StreamInfo): void {
   destroyEngine()
   attempts.value = buildAttempts(stream)
+  // 记录每个尝试对应的线路（url）索引，供手动选线路使用
+  const n = stream.urls.length
+  const directAllowed = settings.proxyMode !== 'proxy'
+  const proxyAllowed = settings.proxyMode !== 'direct' && attempts.value.some((a) => a.kind === 'proxy')
+  const lines: number[] = []
+  if (directAllowed) {
+    for (let i = 0; i < n; i++) lines.push(i)
+  }
+  if (proxyAllowed && stream.urls.some((u) => u.proxy)) {
+    for (let i = 0; i < n; i++) lines.push(i)
+  }
+  lineOfAttempt.value = lines
   attemptIndex.value = 0
   hadPlaying.value = false
   needGesture.value = false
@@ -102,6 +115,20 @@ function resetAndPlay(stream: StreamInfo): void {
   state.value = 'loading'
   void playAttempt()
 }
+
+/** 手动选择线路（url 索引）：优先直连尝试，无直连时用代理尝试。 */
+function playLine(urlIndex: number): void {
+  const target = lineOfAttempt.value.findIndex((l) => l === urlIndex)
+  if (target < 0 || target >= attempts.value.length) return
+  attemptIndex.value = target
+  hadPlaying.value = false
+  needGesture.value = false
+  errorMsg.value = ''
+  state.value = 'loading'
+  void playAttempt()
+}
+
+defineExpose({ playLine })
 
 // ---------------------------------------------------------------------------
 // 引擎
