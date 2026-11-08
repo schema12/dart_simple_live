@@ -126,28 +126,28 @@ jobs:
         working-directory: simple_live_app
         run: |
           set -o pipefail
-          flutter build apk --debug --target-platform android-arm64 2>&1 | tee build.log
+          flutter build apk --debug --build-number=${{ github.run_number }} --target-platform android-arm64 2>&1 | tee build.log
 
       - name: Build APK (debug / universal)
         if: ${{ steps.resolve.outputs.build_type == 'debug' && steps.resolve.outputs.target_abi == 'universal' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
-          flutter build apk --debug 2>&1 | tee build.log
+          flutter build apk --debug --build-number=${{ github.run_number }} 2>&1 | tee build.log
 
       - name: Build APK (release / arm64)
         if: ${{ steps.resolve.outputs.build_type == 'release' && steps.resolve.outputs.target_abi == 'arm64-v8a' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
-          flutter build apk --release --target-platform android-arm64 2>&1 | tee build.log
+          flutter build apk --release --build-number=${{ github.run_number }} --target-platform android-arm64 2>&1 | tee build.log
 
       - name: Build APK (release / universal)
         if: ${{ steps.resolve.outputs.build_type == 'release' && steps.resolve.outputs.target_abi == 'universal' }}
         working-directory: simple_live_app
         run: |
           set -o pipefail
-          flutter build apk --release 2>&1 | tee build.log
+          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
 
       # ---------- 产物 ----------
       - name: Collect artifacts

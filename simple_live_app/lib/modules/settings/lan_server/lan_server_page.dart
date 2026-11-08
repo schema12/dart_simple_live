@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:simple_live_app/app/app_style.dart';
+import 'package:simple_live_app/app/utils.dart';
 import 'package:simple_live_app/services/lan_server_service.dart';
 import 'package:simple_live_lan_server/simple_live_lan_server.dart' show LanServerStatus;
 
@@ -56,6 +57,11 @@ class LanServerPage extends StatelessWidget {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
+                // 构建号可见：每次云构建唯一，用于确认手机上运行的版本
+                Text(
+                  "build.${Utils.packageInfo.buildNumber}",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 if (service.isRunning)
                   TextButton(
                     onPressed: () => service.stop(),
