@@ -13,6 +13,8 @@ export interface DanmakuSettings {
   showTop: boolean // 顶部固定区（醒目留言）
 }
 
+export type FavoritesLayout = 'list' | 'card'
+
 export interface Settings {
   theme: ThemeMode
   danmaku: DanmakuSettings
@@ -20,6 +22,7 @@ export interface Settings {
   autoplay: boolean
   proxyMode: ProxyMode
   autoRetry: boolean
+  favoritesLayout: FavoritesLayout // 收藏页布局
 }
 
 const STORAGE_KEY = 'sl_settings'
@@ -39,6 +42,7 @@ const defaults: Settings = {
   autoplay: true,
   proxyMode: 'auto',
   autoRetry: true,
+  favoritesLayout: 'list',
 }
 
 function load(): Settings {
