@@ -81,69 +81,60 @@ const currentAttempt = computed(() => attempts.value[attemptIndex.value] ?? null
 // 尝试序列构建
 // ---------------------------------------------------------------------------
 
-function buildAttempts(stream: StreamInfo, preferredLine?: number): Attempt[] {
+function buildAttempts(stream: StreamInfo, preferredLine?: number): { attempts: Attempt[]; lineOf: number[] } {
   const mode = settings.proxyMode
-  const list: Attempt[] = []
   const directAllowed = mode === 'auto' || mode === 'direct'
   const proxyAllowed = mode === 'auto' || mode === 'proxy'
-  const direct: Attempt[] = []
-  const proxied: Attempt[] = []
+  // 虎牙 HLS 的 CDN 按 UA 指纹拦截：浏览器 UA 直连必 403，仅 iPad 移动 UA（原生 HLS 环境）放行。
+  // hls.js/Chrome 环境跳过该线路的直连尝试，否则选 HLS 会先 403 再回退到 FLV。
+  const hlsDirectBlocked = stream.platform === 'huya' && !supportsNativeHls()
+  const attempts: Attempt[] = []
+  const lineOf: number[] = []
   // 线路顺序：手动选择时所选线路优先，其余保持原顺序
   const order = stream.urls.map((_, i) => i)
   if (preferredLine !== undefined && preferredLine >= 0 && preferredLine < order.length) {
     const rest = order.filter((i) => i !== preferredLine)
     order.splice(0, order.length, preferredLine, ...rest)
   }
+  // 每条线路内先直连后代理：手动选线时所选线路的可用尝试排在最前
   order.forEach((i) => {
     const u = stream.urls[i]
-    if (directAllowed) {
-      direct.push({
+    if (directAllowed && !(hlsDirectBlocked && u.format === 'hls')) {
+      attempts.push({
         label: `直连 ${i + 1}`,
         kind: 'direct',
         url: u.url,
         format: u.format,
       })
+      lineOf.push(i)
     }
     if (proxyAllowed && u.proxy) {
-      proxied.push({
+      attempts.push({
         label: `代理 ${i + 1}`,
         kind: 'proxy',
         url: withToken(u.proxy),
         format: u.format,
       })
+      lineOf.push(i)
     }
   })
-  // auto：先直连后代理；proxy：仅代理；direct：仅直连
-  return [...direct, ...proxied]
+  return { attempts, lineOf }
 }
 
 function resetAndPlay(stream: StreamInfo): void {
   destroyEngine()
-  attempts.value = buildAttempts(stream, props.initialLine?.line)
-  // 记录每个尝试对应的线路（url）索引，供手动选线路使用
-  const n = stream.urls.length
-  const directAllowed = settings.proxyMode !== 'proxy'
-  const proxyAllowed = settings.proxyMode !== 'direct' && attempts.value.some((a) => a.kind === 'proxy')
-  const lines: number[] = []
-  if (directAllowed) {
-    for (let i = 0; i < n; i++) lines.push(i)
-  }
-  if (proxyAllowed && stream.urls.some((u) => u.proxy)) {
-    for (let i = 0; i < n; i++) lines.push(i)
-  }
-  lineOfAttempt.value = lines
+  const built = buildAttempts(stream, props.initialLine?.line)
+  attempts.value = built.attempts
+  lineOfAttempt.value = built.lineOf
   attemptIndex.value = 0
-  // 恢复到卡住前的线路（刷新/重取流场景）
+  // 恢复到卡住前的线路（刷新/重取流场景）：线路索引 + 直连/代理方式都匹配
   if (props.initialLine && props.initialLine.line >= 0) {
-    const target = lines.findIndex(
-      (l) => l === props.initialLine!.line,
+    const idx = built.lineOf.findIndex(
+      (l, k) =>
+        l === props.initialLine!.line &&
+        (built.attempts[k].kind === 'proxy') === props.initialLine!.viaProxy,
     )
-    if (target >= 0) {
-      const attempt = attempts.value[target]
-      if (attempt && (attempt.kind === 'proxy') === props.initialLine.viaProxy) {
-        attemptIndex.value = target
-      }
-    }
+    if (idx >= 0) attemptIndex.value = idx
   }
   hadPlaying.value = false
   needGesture.value = false
@@ -162,11 +153,9 @@ function resetAndPlay(stream: StreamInfo): void {
 function playLine(urlIndex: number): void {
   if (!props.stream) return
   destroyEngine()
-  attempts.value = buildAttempts(props.stream, urlIndex)
-  lineOfAttempt.value = attempts.value.map((a) => {
-    const m = a.label.match(/\d+/)
-    return m ? parseInt(m[0], 10) - 1 : 0
-  })
+  const built = buildAttempts(props.stream, urlIndex)
+  attempts.value = built.attempts
+  lineOfAttempt.value = built.lineOf
   attemptIndex.value = 0
   hadPlaying.value = false
   needGesture.value = false
