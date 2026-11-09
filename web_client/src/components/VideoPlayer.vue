@@ -619,7 +619,7 @@ onBeforeUnmount(() => {
       @playing="onPlaying"
       @pause="onPause"
       @error="onVideoError"
-      @click="onVideoTap"
+      @click.stop="onVideoTap"
     ></video>
 
     <slot></slot>
