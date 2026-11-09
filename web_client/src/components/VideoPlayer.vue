@@ -672,7 +672,7 @@ onBeforeUnmount(() => {
     </button>
 
     <!-- 控制条 -->
-    <transition name="fade">
+    <transition name="fade" :duration="250">
       <div v-if="showControls" class="controls">
         <button class="ctrl" @click.stop="togglePlay" :aria-label="state === 'playing' ? '暂停' : '播放'">
           <svg v-if="state === 'playing'" viewBox="0 0 24 24" fill="currentColor">
@@ -743,7 +743,7 @@ onBeforeUnmount(() => {
     </transition>
 
     <!-- 右侧抽屉（原版 showRightDialog）：线路选择 / 清晰度 / 弹幕设置 -->
-    <transition name="drawer">
+    <transition name="drawer" :duration="220">
       <div v-if="drawer" class="side-drawer" @click.stop>
         <div class="drawer-head">
           <span class="drawer-title">{{
