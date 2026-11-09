@@ -293,7 +293,8 @@ async function tryPlay(): Promise<void> {
 function startWatchdog(ms: number): void {
   clearWatchdog()
   watchdog = window.setTimeout(() => {
-    if (state.value !== 'playing') {
+    // 手势等待（自动播放被浏览器拦截）不算加载失败，否则会把整条尝试链烧光跳到别的线路
+    if (state.value !== 'playing' && !needGesture.value) {
       onAttemptFailed('加载超时')
     }
   }, ms)
@@ -661,8 +662,7 @@ onBeforeUnmount(() => {
     </button>
 
     <!-- 控制条 -->
-    <transition name="fade" :duration="250">
-      <div v-if="showControls" class="controls">
+    <div class="controls" :class="{ visible: showControls }">
         <button class="ctrl" @click.stop="togglePlay" :aria-label="state === 'playing' ? '暂停' : '播放'">
           <svg v-if="state === 'playing'" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
@@ -729,11 +729,11 @@ onBeforeUnmount(() => {
           </svg>
         </button>
       </div>
-    </transition>
 
     <!-- 右侧抽屉（原版 showRightDialog）：线路选择 / 清晰度 / 弹幕设置 -->
-    <transition name="drawer" :duration="220">
-      <div v-if="drawer" class="side-drawer" @click.stop>
+    <!-- 常驻 DOM + class 切换 CSS 过渡：Vue transition 的 enter/leave 生命周期在该环境不可靠（enter 类残留卡死） -->
+    <div class="side-drawer" :class="{ open: !!drawer }" @click.stop>
+      <template v-if="drawer">
         <div class="drawer-head">
           <span class="drawer-title">{{
             drawer === 'quality' ? '清晰度' : drawer === 'line' ? '线路选择' : '弹幕设置'
@@ -769,8 +769,8 @@ onBeforeUnmount(() => {
         <div v-else class="drawer-body dm-drawer-body">
           <DanmakuSettingsPanel />
         </div>
-      </div>
-    </transition>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -857,6 +857,13 @@ video {
   gap: 6px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
   z-index: 7;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.controls.visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 .ctrl {
   width: 40px;
@@ -902,6 +909,11 @@ video {
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+}
+.side-drawer.open {
+  transform: translateX(0);
 }
 .drawer-head {
   display: flex;
@@ -966,37 +978,7 @@ video {
 .dm-drawer-body {
   padding: 4px 12px 12px;
 }
-.drawer-enter-active {
-  animation: drawer-in 0.22s ease;
-}
-.drawer-leave-active {
-  animation: drawer-out 0.2s ease forwards;
-}
-@keyframes drawer-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-@keyframes drawer-out {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
 .spacer {
   flex: 1;
-}
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>
