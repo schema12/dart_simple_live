@@ -29,13 +29,14 @@ class StreamProxy {
       LinkedHashMap<String, ProxyEntry>();
 
   /// 登记一个上游地址，返回代理 ID。
-  String register(String url, {Map<String, String>? headers}) {
+  String register(String url, {Map<String, String>? headers, String uaMode = 'client'}) {
     _gc();
     final id = _newId();
     _entries[id] = ProxyEntry(
       id: id,
       url: url,
       headers: headers ?? const {},
+      uaMode: uaMode,
       createdAt: DateTime.now(),
     );
     while (_entries.length > maxEntries) {
@@ -103,11 +104,10 @@ class StreamProxy {
       final req = await _client.openUrl('GET', uri);
       // 平台要求的请求头（Referer 等）
       entry.headers.forEach(req.headers.set);
-      // UA 策略：优先透传客户端自身的 User-Agent（部分平台按 UA+Range 组合做
-      // 防盗链指纹，如虎牙：浏览器 UA + 无 Range 才放行），客户端没有时才用
-      // 平台建议的 UA。
+      // UA 策略：fixed=强制使用登记时的 UA（虎牙 HLS 按 UA 指纹拦截浏览器）；
+      // client=透传客户端 UA（虎牙 FLV：浏览器 UA 才放行）。
       final clientUa = request.headers.value(HttpHeaders.userAgentHeader);
-      if (clientUa != null && clientUa.isNotEmpty) {
+      if (entry.uaMode == 'client' && clientUa != null && clientUa.isNotEmpty) {
         req.headers.set(HttpHeaders.userAgentHeader, clientUa);
       }
       // 透传 Range
@@ -254,11 +254,16 @@ class ProxyEntry {
   final String id;
   final String url;
   final Map<String, String> headers;
+
+  /// UA 策略：client=透传客户端 UA（FLV：浏览器 UA 可通过）；
+  /// fixed=强制使用 headers 里的 UA（HLS：虎牙按 UA 指纹拦截浏览器）。
+  final String uaMode;
   DateTime createdAt;
   ProxyEntry({
     required this.id,
     required this.url,
     required this.headers,
+    required this.uaMode,
     required this.createdAt,
   });
 }

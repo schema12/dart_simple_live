@@ -4,6 +4,7 @@ import type Hls from 'hls.js'
 import mpegts from 'mpegts.js'
 import type { StreamInfo, StreamUrl } from '../api/types'
 import { withToken } from '../api/client'
+import DanmakuSettingsPanel from './DanmakuSettingsPanel.vue'
 import { settings } from '../stores/settings'
 
 /**
@@ -17,6 +18,8 @@ const props = defineProps<{
   autoplay: boolean
   /** 重取流后希望恢复的线路（url 索引 + 是否代理），用于保持卡住前的线路 */
   initialLine?: { line: number; viaProxy: boolean } | null
+  /** 当前画质 index（控制条显示画质名） */
+  currentQuality?: number
 }>()
 
 const emit = defineEmits<{
@@ -49,6 +52,23 @@ const attempts = ref<Attempt[]>([])
 const attemptIndex = ref(0)
 const lineOfAttempt = ref<number[]>([])
 const hadPlaying = ref(false)
+// 右侧抽屉（原版 showRightDialog）：线路选择 / 清晰度 / 弹幕设置
+const drawer = ref<null | 'quality' | 'line' | 'danmaku'>(null)
+
+function toggleDrawer(kind: 'quality' | 'line' | 'danmaku'): void {
+  drawer.value = drawer.value === kind ? null : kind
+}
+
+const qualityName = computed(() => {
+  const q = props.stream?.availableQualities ?? []
+  const idx = props.currentQuality ?? 0
+  return q.find((x) => x.index === idx)?.quality ?? `画质${idx + 1}`
+})
+
+const currentLineLabel = computed(() => {
+  const line = lineOfAttempt.value[attemptIndex.value]
+  return line === undefined ? '线路' : `线路${line + 1}`
+})
 
 let hls: Hls | null = null
 let mpegtsPlayer: mpegts.Player | null = null
@@ -61,14 +81,21 @@ const currentAttempt = computed(() => attempts.value[attemptIndex.value] ?? null
 // 尝试序列构建
 // ---------------------------------------------------------------------------
 
-function buildAttempts(stream: StreamInfo): Attempt[] {
+function buildAttempts(stream: StreamInfo, preferredLine?: number): Attempt[] {
   const mode = settings.proxyMode
   const list: Attempt[] = []
   const directAllowed = mode === 'auto' || mode === 'direct'
   const proxyAllowed = mode === 'auto' || mode === 'proxy'
   const direct: Attempt[] = []
   const proxied: Attempt[] = []
-  stream.urls.forEach((u, i) => {
+  // 线路顺序：手动选择时所选线路优先，其余保持原顺序
+  const order = stream.urls.map((_, i) => i)
+  if (preferredLine !== undefined && preferredLine >= 0 && preferredLine < order.length) {
+    const rest = order.filter((i) => i !== preferredLine)
+    order.splice(0, order.length, preferredLine, ...rest)
+  }
+  order.forEach((i) => {
+    const u = stream.urls[i]
     if (directAllowed) {
       direct.push({
         label: `直连 ${i + 1}`,
@@ -92,7 +119,7 @@ function buildAttempts(stream: StreamInfo): Attempt[] {
 
 function resetAndPlay(stream: StreamInfo): void {
   destroyEngine()
-  attempts.value = buildAttempts(stream)
+  attempts.value = buildAttempts(stream, props.initialLine?.line)
   // 记录每个尝试对应的线路（url）索引，供手动选线路使用
   const n = stream.urls.length
   const directAllowed = settings.proxyMode !== 'proxy'
@@ -131,11 +158,16 @@ function resetAndPlay(stream: StreamInfo): void {
   void playAttempt()
 }
 
-/** 手动选择线路（url 索引）：优先直连尝试，无直连时用代理尝试。 */
+/** 手动选择线路（url 索引）：该线路的直连→代理优先尝试，再轮询其他线路。 */
 function playLine(urlIndex: number): void {
-  const target = lineOfAttempt.value.findIndex((l) => l === urlIndex)
-  if (target < 0 || target >= attempts.value.length) return
-  attemptIndex.value = target
+  if (!props.stream) return
+  destroyEngine()
+  attempts.value = buildAttempts(props.stream, urlIndex)
+  lineOfAttempt.value = attempts.value.map((a) => {
+    const m = a.label.match(/\d+/)
+    return m ? parseInt(m[0], 10) - 1 : 0
+  })
+  attemptIndex.value = 0
   hadPlaying.value = false
   needGesture.value = false
   errorMsg.value = ''
@@ -635,18 +667,103 @@ onBeforeUnmount(() => {
           </svg>
         </button>
 
+        <!-- 弹幕开关 -->
+        <button
+          class="ctrl"
+          :class="{ dim: !settings.danmaku.enabled }"
+          @click.stop="settings.danmaku.enabled = !settings.danmaku.enabled"
+          :aria-label="settings.danmaku.enabled ? '关闭弹幕' : '开启弹幕'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.4 0-2.8-.3-4-.9L3 20l1-4.4A8.5 8.5 0 1 1 21 11.5z" />
+          </svg>
+        </button>
+        <!-- 弹幕设置 -->
+        <button
+          class="ctrl"
+          :class="{ on: drawer === 'danmaku' }"
+          @click.stop="toggleDrawer('danmaku')"
+          aria-label="弹幕设置"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.4 0-2.8-.3-4-.9L3 20l1-4.4A8.5 8.5 0 1 1 21 11.5z" />
+            <circle cx="9" cy="11.5" r="0.9" fill="currentColor" />
+            <circle cx="13" cy="11.5" r="0.9" fill="currentColor" />
+            <circle cx="17" cy="11.5" r="0.9" fill="currentColor" />
+          </svg>
+        </button>
+
         <div class="spacer"></div>
 
+        <!-- 清晰度 -->
+        <button
+          class="ctrl txt"
+          :class="{ on: drawer === 'quality' }"
+          @click.stop="toggleDrawer('quality')"
+        >
+          {{ qualityName }}
+        </button>
+        <!-- 线路 -->
+        <button
+          class="ctrl txt"
+          :class="{ on: drawer === 'line' }"
+          @click.stop="toggleDrawer('line')"
+        >
+          {{ currentLineLabel }}
+        </button>
+        <!-- 刷新 -->
         <button class="ctrl" @click.stop="emit('refetch')" aria-label="刷新直播流">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
           </svg>
         </button>
+        <!-- 全屏 -->
         <button class="ctrl" @click.stop="toggleFullscreen" aria-label="全屏">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
           </svg>
         </button>
+      </div>
+    </transition>
+
+    <!-- 右侧抽屉（原版 showRightDialog）：线路选择 / 清晰度 / 弹幕设置 -->
+    <transition name="drawer">
+      <div v-if="drawer" class="side-drawer" @click.stop>
+        <div class="drawer-head">
+          <span class="drawer-title">{{
+            drawer === 'quality' ? '清晰度' : drawer === 'line' ? '线路选择' : '弹幕设置'
+          }}</span>
+          <button class="drawer-close" @click="drawer = null" aria-label="关闭">✕</button>
+        </div>
+
+        <div v-if="drawer === 'quality'" class="drawer-body">
+          <button
+            v-for="q in stream?.availableQualities ?? []"
+            :key="q.index"
+            class="drawer-item"
+            :class="{ sel: (props.currentQuality ?? 0) === q.index }"
+            @click="emit('selectQuality', q.index); drawer = null"
+          >
+            {{ q.quality }}
+          </button>
+        </div>
+
+        <div v-else-if="drawer === 'line'" class="drawer-body">
+          <button
+            v-for="(u, i) in stream?.urls ?? []"
+            :key="i"
+            class="drawer-item"
+            :class="{ sel: lineOfAttempt[attemptIndex] === i }"
+            @click="playLine(i); drawer = null"
+          >
+            <span>线路{{ i + 1 }}</span>
+            <span class="drawer-badge">{{ u.format.toUpperCase() }}</span>
+          </button>
+        </div>
+
+        <div v-else class="drawer-body dm-drawer-body">
+          <DanmakuSettingsPanel />
+        </div>
       </div>
     </transition>
   </div>
@@ -751,6 +868,106 @@ video {
 .ctrl svg {
   width: 22px;
   height: 22px;
+}
+.ctrl.dim {
+  opacity: 0.45;
+}
+.ctrl.on,
+.ctrl.txt.on {
+  color: var(--accent);
+}
+.ctrl.txt {
+  width: auto;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 右侧抽屉（原版 showRightDialog） */
+.side-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  max-width: 85%;
+  background: rgba(16, 18, 22, 0.96);
+  color: #e8eaee;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
+}
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+.drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+.drawer-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #e8eaee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+.drawer-close:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+.drawer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 10px;
+  color: #e8eaee;
+  font-size: 14px;
+  text-align: left;
+}
+.drawer-item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.drawer-item.sel {
+  background: rgba(37, 177, 224, 0.18);
+  color: #25b1e0;
+  font-weight: 600;
+}
+.drawer-badge {
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #a3a9b3;
+}
+.drawer-item.sel .drawer-badge {
+  color: #25b1e0;
+  border-color: rgba(37, 177, 224, 0.6);
+}
+.dm-drawer-body {
+  padding: 4px 12px 12px;
+}
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.22s ease;
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateX(100%);
 }
 .spacer {
   flex: 1;

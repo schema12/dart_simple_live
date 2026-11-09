@@ -14,6 +14,10 @@ import 'package:simple_live_lan_server/src/static/static_files.dart';
 import 'package:simple_live_lan_server/src/util/http_helpers.dart';
 import 'package:simple_live_lan_server/src/util/ip_utils.dart';
 
+/// 虎牙 HLS 取流 UA：实测 iPad Safari UA 可通过 hls.huya.com 的 UA 指纹校验。
+const kHuyaHlsUserAgent =
+    'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
 /// 服务状态。
 enum LanServerStatus { stopped, starting, running, error }
 
@@ -502,13 +506,21 @@ class LanServer {
     }
     final urls = allUrls.map((url) {
       String? proxyPath;
+      final fmt = detectFormat(url);
+      // UA 策略：虎牙 HLS（hls.huya.com）按 UA 指纹拦截浏览器 UA，
+      // 代理时强制使用移动端 UA；FLV/其他平台透传客户端 UA。
+      final isHuyaHls = platform == 'huya' && fmt == 'hls';
+      final uaMode = isHuyaHls ? 'fixed' : 'client';
+      final entryHeaders = isHuyaHls
+          ? {'user-agent': kHuyaHlsUserAgent}
+          : (extraHeaders ?? const {});
       if (useProxy != 'none') {
-        final id = proxy.register(url, headers: extraHeaders ?? const {});
+        final id = proxy.register(url, headers: entryHeaders, uaMode: uaMode);
         proxyPath = '/api/proxy/$id';
       }
       return {
         'url': url,
-        'format': detectFormat(url),
+        'format': fmt,
         if (proxyPath != null) 'proxy': proxyPath,
       };
     }).toList();
