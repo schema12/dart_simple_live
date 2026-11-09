@@ -977,13 +977,27 @@ video {
 .dm-drawer-body {
   padding: 4px 12px 12px;
 }
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: transform 0.22s ease;
+.drawer-enter-active {
+  animation: drawer-in 0.22s ease;
 }
-.drawer-enter-from,
-.drawer-leave-to {
-  transform: translateX(100%);
+.drawer-leave-active {
+  animation: drawer-out 0.2s ease forwards;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 .spacer {
   flex: 1;
