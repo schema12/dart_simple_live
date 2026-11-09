@@ -81,6 +81,13 @@ class StreamProxy {
 
   /// 处理代理请求：透传 Range，流式转发，客户端断开时取消上游。
   Future<void> handle(HttpRequest request, String id) async {
+    // 播放列表重写时需要的鉴权参数（分片请求不会自动继承播放列表的 query）
+    final token = request.uri.queryParameters['token'] ?? '';
+    final clientId = request.uri.queryParameters['client'] ?? '';
+    final querySuffix = (token.isNotEmpty || clientId.isNotEmpty)
+        ? '?token=$token&client=$clientId'
+        : '';
+
     final entry = find(id);
     if (entry == null) {
       request.response.statusCode = HttpStatus.notFound;
@@ -149,6 +156,7 @@ class StreamProxy {
           uri,
           entry.headers,
           uaMode: entry.uaMode,
+          querySuffix: querySuffix,
         );
         final bytes = utf8.encode(rewritten);
         response.headers.set(
@@ -182,11 +190,15 @@ class StreamProxy {
   }
 
   /// 重写 HLS 播放列表：每个分片/子列表/密钥地址注册为代理并替换为同源路径。
+  ///
+  /// [querySuffix] 附加到每个分片路径（hls.js 拉取分片时不会自动携带
+  /// 播放列表 URL 上的鉴权参数，必须显式写入）。
   String _rewritePlaylist(
     String body,
     Uri baseUri,
     Map<String, String> headers, {
     String uaMode = 'client',
+    String querySuffix = '',
   }) {
     final base = baseUri;
     final lines = body.split('\n');
@@ -202,14 +214,14 @@ class StreamProxy {
           lines[i] = line.replaceAllMapped(RegExp('URI="([^"]+)"'), (m) {
             final abs = base.resolve(m.group(1)!).toString();
             final id = register(abs, headers: headers, uaMode: uaMode);
-            return 'URI="/api/proxy/$id"';
+            return 'URI="/api/proxy/$id$querySuffix"';
           });
         }
         continue;
       }
       final abs = base.resolve(trimmed).toString();
       final id = register(abs, headers: headers, uaMode: uaMode);
-      lines[i] = '/api/proxy/$id';
+      lines[i] = '/api/proxy/$id$querySuffix';
     }
     return lines.join('\n');
   }
