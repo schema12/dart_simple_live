@@ -141,9 +141,15 @@ class StreamProxy {
           contentType.contains('mpegurl') || uri.path.toLowerCase().endsWith('.m3u8');
       if (isPlaylist) {
         // m3u8 重写：把分片/子播放列表地址替换为本服务代理路径，
-        // 使浏览器播放器（hls.js）能全程同源取流（规避 CDN CORS）
+        // 使浏览器播放器（hls.js）能全程同源取流（规避 CDN CORS）。
+        // 分片沿用播放列表的 UA 策略（虎牙 HLS 必须固定移动端 UA）。
         final body = await resp.transform(utf8.decoder).join();
-        final rewritten = _rewritePlaylist(body, uri, entry.headers);
+        final rewritten = _rewritePlaylist(
+          body,
+          uri,
+          entry.headers,
+          uaMode: entry.uaMode,
+        );
         final bytes = utf8.encode(rewritten);
         response.headers.set(
           HttpHeaders.contentTypeHeader,
@@ -179,8 +185,9 @@ class StreamProxy {
   String _rewritePlaylist(
     String body,
     Uri baseUri,
-    Map<String, String> headers,
-  ) {
+    Map<String, String> headers, {
+    String uaMode = 'client',
+  }) {
     final base = baseUri;
     final lines = body.split('\n');
     for (var i = 0; i < lines.length; i++) {
@@ -194,14 +201,14 @@ class StreamProxy {
         if (trimmed.contains('URI="')) {
           lines[i] = line.replaceAllMapped(RegExp('URI="([^"]+)"'), (m) {
             final abs = base.resolve(m.group(1)!).toString();
-            final id = register(abs, headers: headers);
+            final id = register(abs, headers: headers, uaMode: uaMode);
             return 'URI="/api/proxy/$id"';
           });
         }
         continue;
       }
       final abs = base.resolve(trimmed).toString();
-      final id = register(abs, headers: headers);
+      final id = register(abs, headers: headers, uaMode: uaMode);
       lines[i] = '/api/proxy/$id';
     }
     return lines.join('\n');
