@@ -512,6 +512,22 @@ function togglePlay(): void {
   }
 }
 
+/// 点击画面：有抽屉时收起抽屉；否则切换控制条显示。
+/// 直播场景点击画面不应暂停（暂停只走控制条的播放按钮）。
+function onVideoTap(): void {
+  if (drawer.value) {
+    drawer.value = null
+    return
+  }
+  showControls.value = !showControls.value
+  if (showControls.value) {
+    pokeControls()
+  } else if (controlsTimer.value !== null) {
+    clearTimeout(controlsTimer.value)
+    controlsTimer.value = null
+  }
+}
+
 function unmute(): void {
   muted.value = false
   if (videoEl.value) videoEl.value.muted = false
@@ -554,7 +570,7 @@ function pokeControls(): void {
   showControls.value = true
   if (controlsTimer.value !== null) clearTimeout(controlsTimer.value)
   controlsTimer.value = window.setTimeout(() => {
-    if (state.value === 'playing') showControls.value = false
+    if (state.value === 'playing' && !drawer.value) showControls.value = false
   }, 3000)
 }
 
@@ -613,7 +629,7 @@ onBeforeUnmount(() => {
       @playing="onPlaying"
       @pause="onPause"
       @error="onVideoError"
-      @click="togglePlay"
+      @click="onVideoTap"
     ></video>
 
     <slot></slot>
