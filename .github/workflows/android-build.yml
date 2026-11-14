@@ -73,6 +73,8 @@ jobs:
       - name: Setup Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
+          # 锁定版本：3.50.0 起要求 Gradle >= 9.3.1，本项目尚在 Gradle 8.14/AGP 8.11
+          flutter-version: '3.47.9'
           channel: stable
           cache: true
 
