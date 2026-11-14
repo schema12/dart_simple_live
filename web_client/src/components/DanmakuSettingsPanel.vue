@@ -59,8 +59,11 @@ const areaPct = computed({
       <input type="range" class="dm-slider" min="10" max="100" step="10" v-model.number="areaPct" />
     </div>
     <div class="dm-item">
-      <div class="dm-head"><span>显示几行</span><b>{{ settings.danmaku.maxRows }}</b></div>
+      <div class="dm-head">
+        <span>显示几行</span><b>{{ settings.danmaku.maxRows }} 行</b>
+      </div>
       <input type="range" class="dm-slider" min="3" max="40" step="1" v-model.number="settings.danmaku.maxRows" />
+      <div class="dm-hint">默认跟随显示区域；调低可减少弹幕行数</div>
     </div>
     <div class="dm-item">
       <div class="dm-head">
@@ -127,6 +130,11 @@ const areaPct = computed({
 .dm-head b {
   color: var(--text);
   font-weight: 600;
+}
+.dm-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
 }
 .dm-slider {
   width: 100%;
