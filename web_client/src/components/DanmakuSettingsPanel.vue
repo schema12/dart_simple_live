@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { settings } from '../stores/settings'
 
 /** 弹幕设置面板内容（原版 DanmuSettingsView 的 Web 版，无屏蔽功能）。显示区域按百分比（对齐原版 10%-100%）。 */
+const areaPct = computed({
+  get: () => Math.round(settings.danmaku.area * 100),
+  set: (v) => {
+    settings.danmaku.area = v / 100
+  },
+})
 </script>
 
 <template>
@@ -47,9 +54,9 @@ import { settings } from '../stores/settings'
     </div>
     <div class="dm-item">
       <div class="dm-head">
-        <span>显示区域</span><b>{{ Math.round(settings.danmaku.area * 100) }}%</b>
+        <span>显示区域</span><b>{{ areaPct }}%</b>
       </div>
-      <input type="range" class="dm-slider" min="10" max="100" step="10" v-model.number="settings.danmaku.area" />
+      <input type="range" class="dm-slider" min="10" max="100" step="10" v-model.number="areaPct" />
     </div>
     <div class="dm-item">
       <div class="dm-head"><span>显示几行</span><b>{{ settings.danmaku.maxRows }}</b></div>
