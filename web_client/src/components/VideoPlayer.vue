@@ -277,16 +277,10 @@ async function tryPlay(): Promise<void> {
       await video.play()
     }
   } catch {
-    // 浏览器限制：尝试静音自动播放
-    try {
-      muted.value = true
-      video.muted = true
-      await video.play()
-      needGesture.value = true
-    } catch {
-      needGesture.value = true
-      state.value = 'paused'
-    }
+    // 浏览器自动播放策略拦截：不静音降级（任何情况下都不静音），
+    // 保持有声状态等待用户手势（"点击播放"按钮 / 画面点击均可恢复）
+    needGesture.value = true
+    state.value = 'paused'
   }
 }
 
@@ -587,12 +581,6 @@ function onVideoTap(): void {
   }
 }
 
-function unmute(): void {
-  muted.value = false
-  if (videoEl.value) videoEl.value.muted = false
-  void videoEl.value?.play()
-}
-
 async function toggleFullscreen(): Promise<void> {
   const wrapper = wrapperEl.value
   const video = videoEl.value
@@ -726,11 +714,6 @@ onBeforeUnmount(() => {
         点击播放
       </button>
     </div>
-
-    <!-- 静音提示 -->
-    <button v-if="muted && state === 'playing'" class="unmute-chip" @click="unmute">
-      🔇 已静音，点击开启声音
-    </button>
 
     <!-- 控制条 -->
     <div class="controls" :class="{ visible: showControls }">
@@ -905,19 +888,7 @@ video {
 .play-hint svg {
   width: 22px;
   height: 22px;
-}
-.unmute-chip {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 7;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 12.5px;
-  padding: 6px 12px;
-  border-radius: 999px;
-}
-.controls {
+}.controls {
   position: absolute;
   left: 0;
   right: 0;
