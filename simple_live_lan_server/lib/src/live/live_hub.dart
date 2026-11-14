@@ -132,15 +132,17 @@ class LiveHub {
     return qualities;
   }
 
-  /// 获取播放地址（带缓存）。
+  /// 获取播放地址（带缓存）。forceRefresh：中断恢复场景跳过缓存重新解析，
+  /// 避免把已失效的旧地址再发给客户端（直播地址是会话性的，失效后必须重取）。
   Future<LivePlayUrl> getPlayUrls(
     String platform,
     LiveRoomDetail detail,
-    LivePlayQuality quality,
-  ) async {
+    LivePlayQuality quality, {
+    bool forceRefresh = false,
+  }) async {
     final key = '${keyOf(platform, detail.roomId)}#${quality.quality}';
     final entry = _urlCache[key];
-    if (entry != null && !entry.isExpired(urlTtl)) {
+    if (!forceRefresh && entry != null && !entry.isExpired(urlTtl)) {
       _urlCache.setEntryFirst(key, entry);
       return entry.url;
     }

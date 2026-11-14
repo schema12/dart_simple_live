@@ -24,7 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'selectQuality', index: number): void
-  (e: 'refetch'): void
+  (e: 'refetch', refresh?: boolean): void
   (e: 'playing'): void
   (e: 'lineChanged', line: number, viaProxy: boolean): void
 }>()
@@ -311,7 +311,7 @@ function scheduleRefetch(delay: number): void {
   if (refetchTimer !== null) return
   refetchTimer = window.setTimeout(() => {
     refetchTimer = null
-    emit('refetch')
+    emit('refetch', true)
   }, delay)
 }
 
@@ -343,17 +343,22 @@ function onAttemptFailed(reason: string): void {
 let stallTimer: number | null = null
 let lastStallCheck = 0
 let stallCount = 0
-let softReconnectCount = 0
+let softReconnectTimes: number[] = []
 let lastSoftReconnectAt = 0
 
 function softReconnect(): void {
-  softReconnectCount++
-  lastSoftReconnectAt = Date.now()
+  const now = Date.now()
+  // 20 秒滑动窗口内的软重连次数；播放成功不清零（心跳拉起的僵尸播放不算恢复）
+  softReconnectTimes = softReconnectTimes.filter((t) => now - t < 20000)
+  softReconnectTimes.push(now)
+  lastSoftReconnectAt = now
   // 重开当前尝试（destroyEngine + 重新加载同一 URL）：服务器仍在推流时 1-2 秒恢复
   void playAttempt()
 }
 
 let refreshFallbackTimer: number | null = null
+// 用户主动暂停标记：恢复心跳据此区分"用户暂停"与"流断被 media 元素静默暂停"
+const userPaused = ref(false)
 
 /**
  * 手动刷新：先同 URL 软重连（在手势激活窗口内同步 play，保住声音、1-2 秒恢复）；
@@ -365,16 +370,33 @@ function manualRefresh(): void {
     refreshFallbackTimer = null
   }
   if (state.value === 'error' || !currentAttempt.value) {
-    emit('refetch')
+    emit('refetch', true)
     return
   }
   destroyEngine()
-  softReconnectCount = 0
+  softReconnectTimes = []
   void playAttempt()
   refreshFallbackTimer = window.setTimeout(() => {
     refreshFallbackTimer = null
-    if (state.value !== 'playing') emit('refetch')
+    if (state.value !== 'playing') emit('refetch', true)
   }, 8000)
+}
+
+/**
+ * 直播流断开的最直接信号：FLV URL 会话性失效时服务器断流，mpegts 停止 append，
+ * 播放到缓冲末端触发 ended（随后 media 会在残余缓冲上 seek 回起点假播）。
+ * ended 一到即判定流死，直接重新获取播放地址（原版 refreshUrls 路径）。
+ */
+function onMediaEnded(): void {
+  if (!hadPlaying.value) return
+  if (state.value === 'error' || state.value === 'loading') return
+  const v = videoEl.value
+  if (!v) return
+  v.pause()
+  hadPlaying.value = true
+  state.value = 'error'
+  errorMsg.value = '直播流中断，正在重新获取地址…'
+  scheduleRefetch(1200)
 }
 
 function startStallWatchdog(): void {
@@ -389,12 +411,10 @@ function startStallWatchdog(): void {
       stallCount++
       if (stallCount >= 2) {
         stallCount = 0
-        // 播放成功后计数清零：正常恢复不算风暴
-        if (
-          softReconnectCount >= 3 ||
-          (softReconnectCount > 0 && Date.now() - lastSoftReconnectAt < 20000)
-        ) {
-          // 软重连无效或风暴：重新获取播放地址（走原版 refreshUrls 路径）
+        const nowMs = Date.now()
+        softReconnectTimes = softReconnectTimes.filter((t) => nowMs - t < 20000)
+        if (softReconnectTimes.length >= 3) {
+          // 20 秒内 3 次软重连仍停滞：地址失效，重新获取播放地址（原版 refreshUrls 路径）
           hadPlaying.value = true
           onAttemptFailed('画面停滞')
           return
@@ -518,8 +538,7 @@ function onPlaying(): void {
   hadPlaying.value = true
   clearWatchdog()
   needGesture.value = false
-  // 成功播放：软重连计数清零（正常恢复不触发重取地址）
-  softReconnectCount = 0
+  userPaused.value = false
   if (refreshFallbackTimer !== null) {
     clearTimeout(refreshFallbackTimer)
     refreshFallbackTimer = null
@@ -544,8 +563,10 @@ function togglePlay(): void {
   const video = videoEl.value
   if (!video) return
   if (video.paused) {
+    userPaused.value = false
     void video.play()
   } else {
+    userPaused.value = true
     video.pause()
   }
 }
@@ -667,6 +688,7 @@ onBeforeUnmount(() => {
       preload="none"
       @playing="onPlaying"
       @pause="onPause"
+      @ended="onMediaEnded"
       @error="onVideoError"
       @click.stop="onVideoTap"
     ></video>
@@ -685,7 +707,7 @@ onBeforeUnmount(() => {
     <div v-else-if="state === 'error'" class="state-mask">
       <div class="err-title">⚠️ {{ errorMsg }}</div>
       <div class="err-actions">
-        <button class="btn" @click="emit('refetch')">重新获取地址</button>
+        <button class="btn" @click="emit('refetch', true)">重新获取地址</button>
         <button
           v-if="attemptIndex < attempts.length - 1"
           class="btn secondary"

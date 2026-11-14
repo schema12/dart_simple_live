@@ -440,6 +440,7 @@ class LanServer {
     final roomId = HttpHelpers.requireParam(request, 'id');
     final qualityIndex = HttpHelpers.intParam(request, 'quality', 0);
     final proxyMode = HttpHelpers.optionalParam(request, 'proxy') ?? 'auto';
+    final refresh = HttpHelpers.optionalParam(request, 'refresh') == '1';
 
     final detail = await hub.getRoomDetail(platform, roomId);
     if (!detail.status) {
@@ -453,7 +454,7 @@ class LanServer {
     }
     final index = qualityIndex.clamp(0, qualities.length - 1);
     final quality = qualities[index];
-    final playUrl = await hub.getPlayUrls(platform, detail, quality);
+    final playUrl = await hub.getPlayUrls(platform, detail, quality, forceRefresh: refresh);
 
     // 虎牙追加 HLS 线路：分片传输更抗 CDN 切割，且 iPad Safari 可原生播放
     // （原生 HLS 不受 CORS 限制，无需经手机代理）。构造失败不影响 FLV 线路。

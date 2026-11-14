@@ -202,10 +202,11 @@ export const api = {
     id: string,
     quality = 0,
     proxy: 'auto' | '1' | '0' = 'auto',
+    refresh = false,
   ) =>
     request<StreamInfo>(
       '/api/stream',
-      { platform, id, quality, proxy },
+      { platform, id, quality, proxy, refresh: refresh ? '1' : undefined },
       // 解析挂起时快速失败交给上层重试，不让用户"等半天"
       { timeoutMs: 12000 },
     ),

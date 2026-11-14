@@ -109,7 +109,7 @@ let streamRetryTimer: number | null = null
 let streamRetryFails = 0
 let lastRefetchAt = 0
 
-async function loadStream(resetQuality = false): Promise<void> {
+async function loadStream(resetQuality = false, forceRefresh = false): Promise<void> {
   streamError.value = ''
   if (streamRetryTimer !== null) {
     clearTimeout(streamRetryTimer)
@@ -131,6 +131,7 @@ async function loadStream(resetQuality = false): Promise<void> {
       roomId.value,
       currentQuality.value,
       settings.proxyMode === 'proxy' ? '1' : settings.proxyMode === 'direct' ? '0' : 'auto',
+      forceRefresh,
     )
     selectedLine.value = pendingLine.value?.line ?? 0
     saveQualityMemory(currentQuality.value)
@@ -144,7 +145,7 @@ async function loadStream(resetQuality = false): Promise<void> {
       streamRetryFails++
       streamRetryTimer = window.setTimeout(() => {
         streamRetryTimer = null
-        void loadStream(false)
+        void loadStream(false, true)
       }, 3000)
     }
   }
@@ -157,14 +158,14 @@ function selectQuality(index: number): void {
   void loadStream(false)
 }
 
-function onRefetch(): void {
+function onRefetch(refresh = false): void {
   // 2 秒节流（连点无效），成功播放后计数归零，不再有总量上限
   const now = Date.now()
   if (now - lastRefetchAt < 2000) return
   lastRefetchAt = now
   refetchCount.value++
   streamRetryFails = 0
-  void loadStream(false)
+  void loadStream(false, refresh)
 }
 
 // ---------------------------------------------------------------------------
