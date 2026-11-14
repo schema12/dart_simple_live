@@ -202,7 +202,13 @@ export const api = {
     id: string,
     quality = 0,
     proxy: 'auto' | '1' | '0' = 'auto',
-  ) => request<StreamInfo>('/api/stream', { platform, id, quality, proxy }),
+  ) =>
+    request<StreamInfo>(
+      '/api/stream',
+      { platform, id, quality, proxy },
+      // 解析挂起时快速失败交给上层重试，不让用户"等半天"
+      { timeoutMs: 12000 },
+    ),
   server: () => request<ServerInfo>('/api/server'),
   /** 手机 App 内的关注列表（用于 Web 收藏一键导入）。 */
   follows: () =>

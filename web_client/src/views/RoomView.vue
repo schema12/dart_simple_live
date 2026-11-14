@@ -104,8 +104,17 @@ function saveQualityMemory(index: number): void {
   }
 }
 
+// 直播流重试链：解析失败（风控/超时）自动重试，不让恢复过程"等半天没反应"
+let streamRetryTimer: number | null = null
+let streamRetryFails = 0
+let lastRefetchAt = 0
+
 async function loadStream(resetQuality = false): Promise<void> {
   streamError.value = ''
+  if (streamRetryTimer !== null) {
+    clearTimeout(streamRetryTimer)
+    streamRetryTimer = null
+  }
   try {
     if (resetQuality) {
       const q = await api.qualities(platform.value, roomId.value)
@@ -125,23 +134,37 @@ async function loadStream(resetQuality = false): Promise<void> {
     )
     selectedLine.value = pendingLine.value?.line ?? 0
     saveQualityMemory(currentQuality.value)
+    // 成功：重置刷新计数与重试链
+    refetchCount.value = 0
+    streamRetryFails = 0
   } catch (e) {
+    // 保留现有 stream（播放器保留错误遮罩与刷新按钮，可手动重试），自动重试
     streamError.value = (e as Error).message
-    stream.value = null
+    if (streamRetryFails < 5) {
+      streamRetryFails++
+      streamRetryTimer = window.setTimeout(() => {
+        streamRetryTimer = null
+        void loadStream(false)
+      }, 3000)
+    }
   }
 }
 
 function selectQuality(index: number): void {
   currentQuality.value = index
   pendingLine.value = null
+  streamRetryFails = 0
   void loadStream(false)
 }
 
 function onRefetch(): void {
+  // 2 秒节流（连点无效），成功播放后计数归零，不再有总量上限
+  const now = Date.now()
+  if (now - lastRefetchAt < 2000) return
+  lastRefetchAt = now
   refetchCount.value++
-  if (refetchCount.value <= 8) {
-    void loadStream(false)
-  }
+  streamRetryFails = 0
+  void loadStream(false)
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +289,7 @@ onBeforeUnmount(() => {
   closedByUs = true
   cleanupWs()
   if (reconnectTimer !== null) clearTimeout(reconnectTimer)
+  if (streamRetryTimer !== null) clearTimeout(streamRetryTimer)
 })
 
 onUnauthorized(() => {

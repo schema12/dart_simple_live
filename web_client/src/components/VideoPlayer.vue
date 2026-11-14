@@ -337,11 +337,21 @@ function onAttemptFailed(reason: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// 卡顿看门狗：播放状态下画面停滞（FLV 直播流偶发断流）→ 自动重取当前线路
+// 卡顿看门狗：播放状态下画面停滞（FLV 直播流偶发断流）→ 先同 URL 软重连（秒级无缝恢复），
+// 软重连仍停滞才重新拉取播放地址（对齐原版 watchdog→refreshUrls 机制）
 // ---------------------------------------------------------------------------
 let stallTimer: number | null = null
 let lastStallCheck = 0
 let stallCount = 0
+let softReconnectCount = 0
+let lastSoftReconnectAt = 0
+
+function softReconnect(): void {
+  softReconnectCount++
+  lastSoftReconnectAt = Date.now()
+  // 重开当前尝试（destroyEngine + 重新加载同一 URL）：服务器仍在推流时 1-2 秒恢复
+  void playAttempt()
+}
 
 function startStallWatchdog(): void {
   stopStallWatchdog()
@@ -354,10 +364,18 @@ function startStallWatchdog(): void {
       // 2 秒内画面没有前进 → 卡住
       stallCount++
       if (stallCount >= 2) {
-        // 连续 2 次检测（约 6 秒）仍停滞 → 重取当前线路
         stallCount = 0
-        hadPlaying.value = true
-        onAttemptFailed('画面停滞')
+        // 播放成功后计数清零：正常恢复不算风暴
+        if (
+          softReconnectCount >= 3 ||
+          (softReconnectCount > 0 && Date.now() - lastSoftReconnectAt < 20000)
+        ) {
+          // 软重连无效或风暴：重新获取播放地址（走原版 refreshUrls 路径）
+          hadPlaying.value = true
+          onAttemptFailed('画面停滞')
+          return
+        }
+        softReconnect()
         return
       }
     } else {
@@ -476,6 +494,8 @@ function onPlaying(): void {
   hadPlaying.value = true
   clearWatchdog()
   needGesture.value = false
+  // 成功播放：软重连计数清零（正常恢复不触发重取地址）
+  softReconnectCount = 0
   startStallWatchdog()
   trySetupAudioDetector()
   emit('playing')

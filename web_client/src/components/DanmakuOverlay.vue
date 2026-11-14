@@ -18,7 +18,7 @@ interface Item {
   color: string
   x: number
   row: number
-  speed: number
+  baseSpeed: number
   width: number
 }
 
@@ -34,29 +34,30 @@ let dpr = 1
 
 function push(text: string, color: string): void {
   if (!props.enabled || !ctx || cssWidth <= 0) return
+  // 同屏最多条数硬限制（设置里的"密度"）：超限直接丢弃，不受行复用绕过
+  if (items.length >= settings.danmaku.density) return
   const fontSize = settings.danmaku.fontSize
   ctx.font = `${settings.danmaku.bold ? 'bold ' : ''}${fontSize}px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif`
   const width = ctx.measureText(text).width
   if (width > cssWidth * 0.9) return // 超长弹幕丢弃
 
-  const baseSpeed = Math.max(cssWidth / 8, 80) * settings.danmaku.speed
-  const speed = baseSpeed * (0.9 + Math.random() * 0.3)
+  // 基础速度（屏宽比例 × 随机扰动）；全局速度倍率在帧循环实时应用，调设置立即生效
+  const baseSpeed = Math.max(cssWidth / 8, 80) * (0.9 + Math.random() * 0.3)
 
-  // 找一个可用行：上一条已经离开出安全间距（行范围受显示区域限制）
+  // 行范围受"显示区域 × 行数"限制；行空闲（上一条已完全离开）才分配
   let row = -1
-  const gap = Math.max(30, width * 0.25)
   const effectiveRows = Math.max(
     1,
-    Math.min(settings.danmaku.maxRows, Math.floor((cssHeight * settings.danmaku.area) / (settings.danmaku.fontSize + 8))),
+    Math.min(
+      settings.danmaku.maxRows,
+      Math.floor((cssHeight * settings.danmaku.area) / (settings.danmaku.fontSize + 8)),
+    ),
   )
   for (let i = 0; i < effectiveRows; i++) {
     const last = rowLastEnd[i] ?? -Infinity
-    if (last <= cssWidth + gap * -1 || last === -Infinity || last <= cssWidth - 0) {
-      // 行从未用过，或上一条已完全离开
-      if (last === -Infinity || last <= cssWidth) {
-        row = i
-        break
-      }
+    if (last === -Infinity || last <= cssWidth) {
+      row = i
+      break
     }
   }
   if (row === -1) {
@@ -64,29 +65,25 @@ function push(text: string, color: string): void {
     if (rowLastEnd.length < effectiveRows) {
       row = rowLastEnd.length
     } else {
-      // 全满：找最快离开的行
+      // 全满：找最快离开的行（其最右端已出屏即可复用），否则丢弃（密度已在入口限制）
       let minEnd = Infinity
-      for (let i = 0; i < rowLastEnd.length; i++) {
-        if ((rowLastEnd[i] ?? Infinity) < minEnd) {
-          minEnd = rowLastEnd[i] ?? Infinity
+      for (let i = 0; i < effectiveRows && i < rowLastEnd.length; i++) {
+        const end = rowLastEnd[i] ?? Infinity
+        if (end < minEnd) {
+          minEnd = end
           row = i
         }
       }
-      if (minEnd <= cssWidth) {
-        // 该行即将空闲，允许复用
-      } else if (items.length > settings.danmaku.density) {
-        return // 密度限制，丢弃
-      }
+      if (row === -1 || minEnd > cssWidth) return
     }
   }
-  if (row === -1) return
 
   items.push({
     text,
     color,
     x: cssWidth,
     row,
-    speed,
+    baseSpeed,
     width,
   })
   rowLastEnd[row] = cssWidth + width
@@ -113,7 +110,8 @@ function frame(ts: number): void {
 
   for (let i = items.length - 1; i >= 0; i--) {
     const it = items[i]
-    it.x -= it.speed * dt
+    // 全局速度倍率实时应用：调整"滚动速度"立即作用于所有弹幕
+    it.x -= it.baseSpeed * settings.danmaku.speed * dt
     if (it.x + it.width < -20) {
       items.splice(i, 1)
       continue

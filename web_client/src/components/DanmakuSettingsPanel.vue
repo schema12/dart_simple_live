@@ -28,6 +28,7 @@ import { computed } from 'vue'
           textShadow: settings.danmaku.stroke
             ? `0 0 ${settings.danmaku.strokeWidth}px #000, 1px 1px ${settings.danmaku.strokeWidth}px #000`
             : 'none',
+          animationDuration: `${(6 / settings.danmaku.speed).toFixed(2)}s`,
         }"
         >弹幕预览 SimpleLive LAN ~~~~~~~~~~~~</span
       >
