@@ -1,24 +1,17 @@
 <script setup lang="ts">
 import { settings } from '../stores/settings'
 
-/** 弹幕设置面板内容（原版 DanmuSettingsView 的 Web 版，无屏蔽功能）。 */
-const areaOptions = [
-  { value: 1, label: '全屏' },
-  { value: 0.75, label: '3/4' },
-  { value: 0.5, label: '半屏' },
-  { value: 0.25, label: '1/4' },
-]
-const areaLabel = computed(() => {
-  const found = areaOptions.find((a) => a.value === settings.danmaku.area)
-  return found ? found.label : `${Math.round(settings.danmaku.area * 100)}%`
-})
-
-import { computed } from 'vue'
+/** 弹幕设置面板内容（原版 DanmuSettingsView 的 Web 版，无屏蔽功能）。显示区域按百分比（对齐原版 10%-100%）。 */
 </script>
 
 <template>
   <div class="dm-panel">
     <div class="dm-preview">
+      <!-- 区域可视化：灰色遮罩 = 不显示弹幕的部分（底部），边界虚线随"显示区域"实时变化 -->
+      <div
+        class="dm-area-mask"
+        :style="{ height: `${Math.round((1 - settings.danmaku.area) * 100)}%` }"
+      ></div>
       <span
         class="dm-sample"
         :style="{
@@ -54,22 +47,13 @@ import { computed } from 'vue'
     </div>
     <div class="dm-item">
       <div class="dm-head">
-        <span>显示区域</span><b>{{ areaLabel }}</b>
+        <span>显示区域</span><b>{{ Math.round(settings.danmaku.area * 100) }}%</b>
       </div>
-      <div class="dm-seg">
-        <button
-          v-for="a in areaOptions"
-          :key="a.value"
-          :class="{ on: settings.danmaku.area === a.value }"
-          @click="settings.danmaku.area = a.value"
-        >
-          {{ a.label }}
-        </button>
-      </div>
+      <input type="range" class="dm-slider" min="10" max="100" step="10" v-model.number="settings.danmaku.area" />
     </div>
     <div class="dm-item">
-      <div class="dm-head"><span>行数</span><b>{{ settings.danmaku.maxRows }}</b></div>
-      <input type="range" class="dm-slider" min="2" max="15" step="1" v-model.number="settings.danmaku.maxRows" />
+      <div class="dm-head"><span>显示几行</span><b>{{ settings.danmaku.maxRows }}</b></div>
+      <input type="range" class="dm-slider" min="3" max="40" step="1" v-model.number="settings.danmaku.maxRows" />
     </div>
     <div class="dm-item">
       <div class="dm-head">
@@ -93,12 +77,22 @@ import { computed } from 'vue'
 .dm-preview {
   background: #000;
   border-radius: 10px;
-  height: 56px;
+  height: 72px;
   display: flex;
   align-items: center;
   overflow: hidden;
   padding: 0 12px;
   margin-bottom: 12px;
+  position: relative;
+}
+.dm-area-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border-top: 1px dashed rgba(255, 255, 255, 0.35);
+  pointer-events: none;
 }
 .dm-sample {
   color: #fff;

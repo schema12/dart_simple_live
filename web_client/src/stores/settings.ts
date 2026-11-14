@@ -9,9 +9,9 @@ export interface DanmakuSettings {
   fontSize: number // px
   speed: number // 屏幕宽/秒 倍率 0.5-3
   density: number // 最大同时显示条数 5-50
-  maxRows: number // 最大行数 1-15
+  maxRows: number // 显示几行（优先；超过区域可容纳行数时自动收紧）3-40
   showTop: boolean // 顶部固定区（醒目留言）
-  area: number // 显示区域比例 1=全屏 0.5=半屏 0.25=四分之一
+  area: number // 显示区域比例 0.1-1（按画面高度百分比）
   stroke: boolean // 描边开关
   strokeWidth: number // 描边宽度 px
   bold: boolean // 粗体字重
@@ -40,9 +40,9 @@ const defaults: Settings = {
     fontSize: 22,
     speed: 1,
     density: 24,
-    maxRows: 10,
+    maxRows: 8, // 对齐原版默认（显示几行 8）
     showTop: true,
-    area: 1,
+    area: 0.8, // 对齐原版默认（显示区域 80%）
     stroke: true,
     strokeWidth: 2,
     bold: true,

@@ -353,6 +353,30 @@ function softReconnect(): void {
   void playAttempt()
 }
 
+let refreshFallbackTimer: number | null = null
+
+/**
+ * 手动刷新：先同 URL 软重连（在手势激活窗口内同步 play，保住声音、1-2 秒恢复）；
+ * 8 秒仍未播放才重新拉取播放地址（跨网络请求会丢失浏览器手势授权，届时静音不可避免）。
+ */
+function manualRefresh(): void {
+  if (refreshFallbackTimer !== null) {
+    clearTimeout(refreshFallbackTimer)
+    refreshFallbackTimer = null
+  }
+  if (state.value === 'error' || !currentAttempt.value) {
+    emit('refetch')
+    return
+  }
+  destroyEngine()
+  softReconnectCount = 0
+  void playAttempt()
+  refreshFallbackTimer = window.setTimeout(() => {
+    refreshFallbackTimer = null
+    if (state.value !== 'playing') emit('refetch')
+  }, 8000)
+}
+
 function startStallWatchdog(): void {
   stopStallWatchdog()
   lastStallCheck = 0
@@ -496,6 +520,10 @@ function onPlaying(): void {
   needGesture.value = false
   // 成功播放：软重连计数清零（正常恢复不触发重取地址）
   softReconnectCount = 0
+  if (refreshFallbackTimer !== null) {
+    clearTimeout(refreshFallbackTimer)
+    refreshFallbackTimer = null
+  }
   startStallWatchdog()
   trySetupAudioDetector()
   emit('playing')
@@ -607,6 +635,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', onFsChange)
   document.removeEventListener('webkitfullscreenchange', onFsChange)
   if (refetchTimer !== null) clearTimeout(refetchTimer)
+  if (refreshFallbackTimer !== null) clearTimeout(refreshFallbackTimer)
   stopStallWatchdog()
   if (audioTimer !== null) clearInterval(audioTimer)
   destroyEngine()
@@ -737,7 +766,7 @@ onBeforeUnmount(() => {
           {{ currentLineLabel }}
         </button>
         <!-- 刷新 -->
-        <button class="ctrl" @click.stop="emit('refetch')" aria-label="刷新直播流">
+        <button class="ctrl" @click.stop="manualRefresh" aria-label="刷新直播流">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
           </svg>
